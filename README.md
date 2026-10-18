@@ -40,12 +40,29 @@ O `package.json` e o `package-lock.json` ficam no host, então a mudança aparec
 no `git status` normalmente. O porquê de não ser um `npm install` na sua máquina
 está na nota de ambiente no fim deste arquivo.
 
+### Banco de dados
+
+O Postgres sobe junto, no serviço `db`, com volume próprio (`pgdata`). A API só
+inicia depois que o banco responde — o `depends_on` espera o healthcheck, não só
+o container.
+
+```bash
+docker compose exec db psql -U vault -d vault_capital   # abre o psql no banco de dev
+```
+
+Do host (DBeaver, Navicat, etc.), use as variaveis do .env:
+- HOST: localhost
+- Port: POSTGRES_PORT
+- DB:   POSTGRES_DB
+- User: POSTGRES_USER
+- Pass: POSTGRES_PASSWORD
+
 ### Como o ambiente está montado
 
 ```
 apps/api/          — Dockerfile de desenvolvimento
 apps/web/          — Dockerfile de desenvolvimento
-docker-compose.yml — orquestra os dois
+docker-compose.yml — orquestra api, web e o banco
 .env.example       — variáveis de ambiente (copiar para .env)
 ```
 
