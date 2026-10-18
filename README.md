@@ -1,5 +1,54 @@
 # case-vault-capital
 
+## Desafio técnico Vault Capital
+
+Liga trading: amigos criam uma liga, recebem o mesmo saldo fictício e
+competem operando cripto com cotação real.
+
+## Rodando localmente
+
+Único pré-requisito: **Docker**.
+
+```bash
+git clone <url-do-repositorio>
+cd case-vault-capital
+cp .env.example .env
+docker compose up --build
+```
+
+Web (React + Vite) = http://localhost:{PORT}
+API (NestJS) = http://localhost:{PORT}
+
+Para conferir se subiu: `http://localhost:{PORT}`
+
+### Comandos do dia a dia
+
+```bash
+docker compose up --build -d  # sobe em background
+docker compose logs -f api    # acompanha o log de um serviço
+docker compose exec api sh    # abre um shell dentro do container
+```
+
+Dependência nova é instalada dentro do container, e o watch não detecta sozinho:
+
+```bash
+docker compose exec api npm install <pacote>   # ou: exec web
+docker compose restart api
+```
+
+O `package.json` e o `package-lock.json` ficam no host, então a mudança aparece
+no `git status` normalmente. O porquê de não ser um `npm install` na sua máquina
+está na nota de ambiente no fim deste arquivo.
+
+### Como o ambiente está montado
+
+```
+apps/api/          — Dockerfile de desenvolvimento
+apps/web/          — Dockerfile de desenvolvimento
+docker-compose.yml — orquestra os dois
+.env.example       — variáveis de ambiente (copiar para .env)
+```
+
 ## Checklist de entrega
 - [X] Repo no GitHub com `pedro-gattai` como colaborador
 - [ ] Cadastro e login

@@ -9,11 +9,15 @@ não só a escolha.
 
 
 ## 2. Arquitetura:
+- Ambiente local em Docker.
+
 
 **Principais decisões técnicas:**
+- Docker.
 
 **Do que se abriu mão:**
- 
+
+
 
 ## 3. Features próprias:
 

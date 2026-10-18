@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolvePackageJsonExports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "types": ["vitest/globals", "node"]
+  },
+  "watchOptions": {
+    // O bind mount de C:\ chega ao container como 9p, que não entrega eventos
+    // de inotify para alterações feitas no Windows: sem polling o `nest start
+    // --watch` nunca percebe um save. O WatchCompiler do Nest passa o caminho
+    // do tsconfig para o createWatchCompilerHost, então estas opções valem
+    // para ele também, não só para o `tsc --watch`.
+    "watchFile": "fixedPollingInterval",
+    "watchDirectory": "fixedPollingInterval",
+    // Fora do polling: são ~10 mil arquivos que não mudam enquanto se edita o
+    // código, e varrê-los a cada intervalo só queimaria CPU. Preço: dependência
+    // nova instalada com o watch no ar exige reiniciar o container.
+    "excludeDirectories": ["**/node_modules", "dist"]
+  }
+}
