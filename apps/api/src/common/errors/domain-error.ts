@@ -4,8 +4,15 @@
  * (ver common/filters/domain-exception.filter.ts).
  */
 
-/** Só a natureza que já existe no código. Nova natureza entra quando houver um erro que a use. */
-export type DomainErrorKind = 'conflict';
+/**
+ * Só a natureza que já existe no código. Nova natureza entra quando houver um
+ * erro que a use.
+ *
+ * `unauthorized` = quem está chamando não provou quem é (credencial errada ou
+ * ausente). Não confundir com "provou quem é, mas não pode fazer isso": quando
+ * existir autorização por liga, isso será outra natureza.
+ */
+export type DomainErrorKind = 'conflict' | 'unauthorized';
 
 export abstract class DomainError extends Error {
   abstract readonly kind: DomainErrorKind;

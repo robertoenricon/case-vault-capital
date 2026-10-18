@@ -11,6 +11,13 @@ export type RegisterUserInput = {
   password: string;
 };
 
+/** Identidade pública da conta: o que outros módulos podem saber sobre quem é a pessoa. */
+export type UserAccount = {
+  id: string;
+  name: string;
+  email: string;
+};
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -30,5 +37,46 @@ export class UsersService {
     const passwordHash = await this.hasher.hash(input.password);
 
     return this.users.create({ name: input.name, email, passwordHash });
+  }
+
+  /**
+   * Confere e-mail e senha. Devolve a identidade da conta, ou `null` se o
+   * e-mail não existe **ou** a senha não bate.
+   *
+   * Mora em `users` e não em `auth` porque quem guarda o hash é este módulo:
+   * assim o hash não sai daqui e o módulo de autenticação nem tem como ler um.
+   *
+   * O retorno não distingue "e-mail inexistente" de "senha errada" de
+   * propósito: é o que impede o login de responder diferente nos dois casos e
+   * virar uma forma de descobrir quais e-mails têm conta.
+   */
+  async verifyCredentials(
+    email: string,
+    password: string,
+  ): Promise<UserAccount | null> {
+    // Mesma normalização do cadastro — foi assim que o e-mail virou chave.
+    const credentials = await this.users.findCredentialsByEmail(
+      email.toLowerCase(),
+    );
+
+    if (!credentials) {
+      return null;
+    }
+
+    const matches = await this.hasher.compare(
+      password,
+      credentials.passwordHash,
+    );
+
+    if (!matches) {
+      return null;
+    }
+
+    // O hash para aqui: quem chamou recebe só a identidade.
+    return {
+      id: credentials.id,
+      name: credentials.name,
+      email: credentials.email,
+    };
   }
 }

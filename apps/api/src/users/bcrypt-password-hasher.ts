@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { hash } from 'bcryptjs';
+import { compare, hash } from 'bcryptjs';
 import type { PasswordHasher } from './password-hasher.js';
 
 /**
@@ -16,5 +16,17 @@ const COST = 12;
 export class BcryptPasswordHasher implements PasswordHasher {
   hash(plainPassword: string): Promise<string> {
     return hash(plainPassword, COST);
+  }
+
+  /**
+   * O custo usado no cadastro está gravado no próprio hash, então o `compare`
+   * não recebe `COST`: ele lê do hash e repete o mesmo trabalho. É por isso que
+   * aumentar a constante acima não invalida as senhas já cadastradas.
+   *
+   * A comparação do bcrypt é em tempo constante — não dá para descobrir a senha
+   * medindo quanto tempo a resposta levou.
+   */
+  compare(plainPassword: string, passwordHash: string): Promise<boolean> {
+    return compare(plainPassword, passwordHash);
   }
 }

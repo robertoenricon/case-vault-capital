@@ -10,12 +10,27 @@ export type NewUser = {
   passwordHash: string;
 };
 
-/** O que volta do banco. Note que `passwordHash` não está aqui — nem sai da camada de dados. */
+/** O que volta do banco ao criar a conta. Note que `passwordHash` não está aqui. */
 export type StoredUser = {
   id: string;
   name: string;
   email: string;
   createdAt: Date;
+};
+
+/**
+ * Conta + hash da senha, para a conferência de login.
+ *
+ * É o **único** tipo desta camada que carrega o hash, e existe por um motivo
+ * só: comparar senha exige o hash. Quem o recebe é `UsersService`, que o passa
+ * direto para o `PasswordHasher` e devolve apenas a identidade da conta — o
+ * hash não atravessa a fronteira do módulo e nunca chega perto de uma resposta HTTP.
+ */
+export type UserCredentials = {
+  id: string;
+  name: string;
+  email: string;
+  passwordHash: string;
 };
 
 /** Violação de índice único no Postgres, pelo código de erro do Prisma. */
@@ -49,5 +64,22 @@ export class UsersRepository {
       }
       throw error;
     }
+  }
+
+  /**
+   * Busca a conta pelo e-mail para conferir a senha. `null` quando não existe
+   * conta com esse e-mail.
+   *
+   * O e-mail precisa chegar já normalizado (minúsculas): a coluna tem UNIQUE e o
+   * Postgres compara byte a byte, então "Ana@Mail.com" não encontraria nada.
+   * Quem normaliza é o service, que é onde essa regra já mora no cadastro.
+   */
+  async findCredentialsByEmail(email: string): Promise<UserCredentials | null> {
+    // `select` explícito também aqui: o hash sai porque é necessário, não porque
+    // o `findUnique` devolve a linha inteira por padrão.
+    return await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, name: true, email: true, passwordHash: true },
+    });
   }
 }

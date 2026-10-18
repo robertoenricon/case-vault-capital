@@ -1,15 +1,13 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import type { Session } from './session'
+import { useLogin } from './useLogin'
 import './authForm.css'
 import './LoginPage.css'
 
-export type LoginCredentials = {
-  email: string
-  password: string
-}
-
 type LoginPageProps = {
-  onSubmit: (credentials: LoginCredentials) => void
+  /** Chamado quando a API aceitou as credenciais, com o token e quem entrou. */
+  onAuthenticated: (session: Session) => void
   onRegisterClick: () => void
   /** Aviso vindo de outra tela, como a confirmação de que a conta foi criada. */
   notice?: string
@@ -21,11 +19,14 @@ type LoginPageProps = {
  * Tela de login
  */
 export function LoginPage({
-  onSubmit,
+  onAuthenticated,
   onRegisterClick,
   notice,
   initialEmail,
 }: LoginPageProps) {
+  // A requisição e seus estados moram no hook; aqui só se decide o que mostrar.
+  const { submit, submitting, error } = useLogin(onAuthenticated)
+
   // Valor inicial, não estado espelhado: a partir daqui quem manda no campo é
   // quem está digitando, e a tela é montada de novo quando vem do cadastro.
   const [email, setEmail] = useState(initialEmail ?? '')
@@ -33,7 +34,10 @@ export function LoginPage({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    onSubmit({ email, password })
+
+    // Vai como foi digitado: aparar espaços e normalizar a caixa do e-mail é
+    // decisão do backend, que é quem sabe como o e-mail virou chave.
+    void submit({ email, password })
   }
 
   return (
@@ -88,8 +92,21 @@ export function LoginPage({
           />
         </div>
 
-        <button type="submit" className="button button--primary">
-          Login
+        {/* Erro que veio do servidor. Fica junto do botão porque é a resposta ao
+            clique, e não a um campo específico — a mensagem é a mesma para
+            e-mail inexistente e senha errada, de propósito. */}
+        {error && (
+          <p className="form__alert form__alert--error" role="alert">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          className="button button--primary"
+          disabled={submitting}
+        >
+          {submitting ? 'Entrando…' : 'Login'}
         </button>
 
         <p className="login__separator">
@@ -100,6 +117,7 @@ export function LoginPage({
           type="button"
           className="button button--ghost"
           onClick={onRegisterClick}
+          disabled={submitting}
         >
           Registre-se
         </button>

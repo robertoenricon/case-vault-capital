@@ -11,6 +11,7 @@ import type { DomainErrorKind } from '../errors/domain-error.js';
 /** Único lugar que converte natureza de erro de domínio em status HTTP. */
 const STATUS_BY_KIND: Record<DomainErrorKind, HttpStatus> = {
   conflict: HttpStatus.CONFLICT,
+  unauthorized: HttpStatus.UNAUTHORIZED,
 };
 
 /**

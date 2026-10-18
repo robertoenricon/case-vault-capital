@@ -1,4 +1,5 @@
 import { apiUrl } from '../../lib/api'
+import { readApiErrorMessage } from '../../lib/apiError'
 import type { RegisterData } from './registerValidation'
 
 /** O que a API devolve ao criar a conta. Nada de senha, nem de hash. */
@@ -17,26 +18,6 @@ export class RegisterRequestError extends Error {}
 
 const GENERIC_FAILURE =
   'Não foi possível criar sua conta agora. Tente novamente em instantes.'
-
-/** Formato de erro do Nest: `message` é string, ou lista quando o ValidationPipe reprova. */
-function readErrorMessage(body: unknown): string | undefined {
-  if (typeof body !== 'object' || body === null || !('message' in body)) {
-    return undefined
-  }
-
-  const message: unknown = body.message
-
-  if (typeof message === 'string') return message
-
-  if (Array.isArray(message)) {
-    const lines = message.filter(
-      (item): item is string => typeof item === 'string',
-    )
-    if (lines.length > 0) return lines.join(' ')
-  }
-
-  return undefined
-}
 
 /**
  * A resposta chega como `any` do `json()`. Conferir a forma aqui é o que
@@ -81,7 +62,7 @@ export async function registerUser(
     // 409 (e-mail em uso) e 400 (validação) trazem texto próprio do backend;
     // 500 não traz nada útil para quem está na tela.
     const body: unknown = await response.json().catch(() => undefined)
-    throw new RegisterRequestError(readErrorMessage(body) ?? GENERIC_FAILURE)
+    throw new RegisterRequestError(readApiErrorMessage(body) ?? GENERIC_FAILURE)
   }
 
   const created: unknown = await response.json()
