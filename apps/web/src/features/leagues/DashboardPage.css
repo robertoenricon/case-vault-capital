@@ -1,0 +1,132 @@
+/*
+ * Moldura do painel de ligas. Diferente do login, aqui a tela não é um card
+ * centralizado: é uma página com barra no topo e conteúdo alinhado à esquerda,
+ * porque é o lugar onde vão caber lista de ligas, ranking e carteira. As cores,
+ * fontes e bordas são as mesmas de index.css; os botões vêm de authForm.css.
+ */
+
+.dashboard {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Barra fixa no topo: marca à esquerda, conta à direita. */
+.dashboard__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--edge);
+
+  @media (max-width: 480px) {
+    padding: 14px 16px;
+  }
+}
+
+/* Mesma assinatura da tela de login, para a transição não parecer outro app. */
+.dashboard__brand {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.dashboard__account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/*
+ * Nome de quem está logado. `max-width` + reticências porque o nome tem até 120
+ * caracteres no banco e não pode empurrar o botão "Sair" fora da tela.
+ */
+.dashboard__user {
+  font-size: 14px;
+  color: var(--cream-soft);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  @media (max-width: 480px) {
+    max-width: 110px;
+  }
+}
+
+.dashboard__content {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  @media (max-width: 480px) {
+    padding: 28px 16px;
+  }
+}
+
+/* Título da seção à esquerda, ação principal à direita. */
+.dashboard__heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+
+  /* No celular a ação desce para baixo do título e ocupa a largura inteira:
+     botão à direita num espaço estreito competiria com o texto. */
+  @media (max-width: 600px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+}
+
+.dashboard__title {
+  font-size: 30px;
+  letter-spacing: -0.4px;
+  margin: 0 0 6px;
+}
+
+.dashboard__subtitle {
+  font-size: 15px;
+  color: var(--cream-soft);
+}
+
+/*
+ * Estado vazio. Borda tracejada para ler como "espaço que vai ser preenchido",
+ * e não como um card de conteúdo de verdade.
+ */
+.dashboard__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  text-align: center;
+  padding: 48px 24px;
+  background: var(--surface-warm);
+  border: 1px dashed var(--edge-strong);
+  border-radius: 12px;
+
+  @media (max-width: 480px) {
+    padding: 32px 18px;
+  }
+}
+
+.dashboard__empty-title {
+  font-size: 20px;
+  margin: 0;
+}
+
+.dashboard__empty-text {
+  font-size: 15px;
+  color: var(--cream-soft);
+  max-width: 420px;
+}

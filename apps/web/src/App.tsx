@@ -4,7 +4,7 @@ import { RegisterPage } from './features/auth/RegisterPage'
 import type { RegisteredUser } from './features/auth/registerApi'
 import { clearSession, loadSession, saveSession } from './features/auth/session'
 import type { Session } from './features/auth/session'
-import { HomePage } from './features/home/HomePage'
+import { DashboardPage } from './features/leagues/DashboardPage'
 
 type AuthScreen = 'login' | 'register'
 
@@ -33,7 +33,7 @@ function App() {
   }
 
   if (session) {
-    return <HomePage user={session.user} onLogout={handleLogout} />
+    return <DashboardPage user={session.user} onLogout={handleLogout} />
   }
 
   if (screen === 'register') {
