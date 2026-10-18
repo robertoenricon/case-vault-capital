@@ -83,10 +83,10 @@ docker-compose.yml — orquestra api, web e o banco
 - [X] Repo no GitHub com `pedro-gattai` como colaborador
 - [X] React + NestJS + TypeScript + PostgreSQL
 - [X] Cadastro e login
-- [ ] Criar liga + convidar
-- [ ] Ranking da liga
+- [X] Criar liga + convidar
 - [ ] Saldo fictício inicial por participante
 - [ ] Compra e venda com cotação real
+- [ ] Ranking da liga
 
 Deploy:
 - [ ] Deploy publico (gerar link)
