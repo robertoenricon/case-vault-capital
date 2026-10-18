@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session } from '../auth/session'
 import { CreateLeagueModal } from './CreateLeagueModal'
+import { InviteFriendsModal } from './InviteFriendsModal'
 import { LeagueCard } from './LeagueCard'
 import type { League } from './leaguesApi'
 import { useLeagues } from './useLeagues'
@@ -32,6 +33,11 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
   // Nome da liga criada nesta visita, só para a confirmação. Não é a lista: a
   // lista vem da API.
   const [justCreatedName, setJustCreatedName] = useState<string>()
+
+  // Liga cujo convite está aberto. Guarda a liga, e não só o id: o modal mostra
+  // o nome dela, e buscá-lo de novo na lista seria procurar o que já se tem em
+  // mãos no clique.
+  const [invitingTo, setInvitingTo] = useState<League>()
 
   const { leagues, loading, error, refresh } = useLeagues(session.accessToken)
 
@@ -94,7 +100,11 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
         {leagues.map((league) => (
           // `key` com o id da liga, nunca o índice: a lista reordena quando uma
           // liga muda de situação, e índice faria o React reaproveitar o card errado.
-          <LeagueCard key={league.id} league={league} />
+          <LeagueCard
+            key={league.id}
+            league={league}
+            onInvite={() => setInvitingTo(league)}
+          />
         ))}
       </ul>
     )
@@ -155,6 +165,17 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
           accessToken={session.accessToken}
           onCreated={handleCreated}
           onClose={() => setModalOpen(false)}
+        />
+      )}
+
+      {/* Mesmo padrão: montar e desmontar em vez de esconder. Aqui isso também
+          garante que a lista de pessoas é buscada de novo a cada abertura — ela
+          envelhece quando alguém se cadastra. */}
+      {invitingTo && (
+        <InviteFriendsModal
+          league={invitingTo}
+          accessToken={session.accessToken}
+          onClose={() => setInvitingTo(undefined)}
         />
       )}
     </div>

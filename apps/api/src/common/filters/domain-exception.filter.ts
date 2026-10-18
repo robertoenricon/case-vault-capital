@@ -12,6 +12,7 @@ import type { DomainErrorKind } from '../errors/domain-error.js';
 const STATUS_BY_KIND: Record<DomainErrorKind, HttpStatus> = {
   conflict: HttpStatus.CONFLICT,
   unauthorized: HttpStatus.UNAUTHORIZED,
+  forbidden: HttpStatus.FORBIDDEN,
   invalid: HttpStatus.BAD_REQUEST,
 };
 

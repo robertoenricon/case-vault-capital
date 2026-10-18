@@ -9,8 +9,12 @@
  * erro que a use.
  *
  * `unauthorized` = quem está chamando não provou quem é (credencial errada ou
- * ausente). Não confundir com "provou quem é, mas não pode fazer isso": quando
- * existir autorização por liga, isso será outra natureza.
+ * ausente).
+ *
+ * `forbidden` = provou quem é, mas não pode fazer isso — é a autorização por
+ * liga: a sessão é válida e ainda assim a pessoa não participa daquela liga.
+ * Separado de `unauthorized` porque a saída é diferente: ali, entrar resolve;
+ * aqui, entrar de novo não muda nada.
  *
  * `invalid` = o payload está bem formado (passou pelo DTO), mas viola uma regra
  * do domínio — uma liga que começa no passado, por exemplo. Vira 400 e não 422
@@ -18,7 +22,7 @@
  * "seu pedido não serve" só obrigariam a tela a distinguir o que, para quem
  * está nela, é a mesma coisa.
  */
-export type DomainErrorKind = 'conflict' | 'unauthorized' | 'invalid';
+export type DomainErrorKind = 'conflict' | 'unauthorized' | 'forbidden' | 'invalid';
 
 export abstract class DomainError extends Error {
   abstract readonly kind: DomainErrorKind;

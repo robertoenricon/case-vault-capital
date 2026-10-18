@@ -19,6 +19,17 @@ export type StoredUser = {
 };
 
 /**
+ * Conta como ela pode ser vista por **outra pessoa**: id e nome, nada mais.
+ *
+ * O e-mail fica fora do tipo, não só da consulta: assim não existe nem como
+ * acrescentá-lo por descuido num `select` depois — o compilador recusaria.
+ */
+export type PublicUser = {
+  id: string;
+  name: string;
+};
+
+/**
  * Conta + hash da senha, para a conferência de login.
  *
  * É o **único** tipo desta camada que carrega o hash, e existe por um motivo
@@ -64,6 +75,27 @@ export class UsersRepository {
       }
       throw error;
     }
+  }
+
+  /**
+   * Todas as contas, em ordem alfabética, para a lista de quem pode ser
+   * convidado a uma liga.
+   *
+   * O `select` leva **id e nome, nunca o e-mail**: não é esquecimento de campo,
+   * é a regra — e-mail de terceiro não sai da aplicação. Como o `select` é
+   * explícito, acrescentar coluna no banco não muda o que esta consulta devolve.
+   *
+   * Sem paginação por decisão registrada: a lista vem inteira. É o que basta
+   * para uma liga entre amigos e o que precisa mudar antes de a base crescer —
+   * com volume, isto precisa de busca e limite.
+   */
+  async findAll(): Promise<PublicUser[]> {
+    return await this.prisma.user.findMany({
+      select: { id: true, name: true },
+      // Ordem alfabética para a lista ser percorrível com o olho. É a única
+      // ordem útil aqui: não existe "mais relevante" sem amizade nem histórico.
+      orderBy: { name: 'asc' },
+    });
   }
 
   /**

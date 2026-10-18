@@ -1,5 +1,10 @@
 import { Test } from '@nestjs/testing';
-import { LeagueStartsInPastError } from './leagues.errors.js';
+import type { PublicUser } from '../users/users.repository.js';
+import { UsersService } from '../users/users.service.js';
+import {
+  LeagueStartsInPastError,
+  NotALeagueParticipantError,
+} from './leagues.errors.js';
 import { LeaguesRepository } from './leagues.repository.js';
 import type { NewLeague, StoredLeague } from './leagues.repository.js';
 import { LeaguesService } from './leagues.service.js';
@@ -37,6 +42,7 @@ function repositoryFake() {
   const saved: NewLeague[] = [];
   const askedFor: string[] = [];
   const rows: StoredLeague[] = [];
+  const participantsByLeague = new Map<string, string[]>();
 
   return {
     saved,
@@ -65,14 +71,48 @@ function repositoryFake() {
 
       return Promise.resolve([...rows]);
     },
+
+    /** Quem participa de cada liga. Liga nunca semeada responde vazio, como o banco. */
+    seedParticipants(leagueId: string, userIds: string[]): void {
+      participantsByLeague.set(leagueId, userIds);
+    },
+
+    findParticipantUserIds(leagueId: string): Promise<string[]> {
+      return Promise.resolve(participantsByLeague.get(leagueId) ?? []);
+    },
   };
 }
 
-async function buildService(repository: ReturnType<typeof repositoryFake>) {
+/**
+ * Contas cadastradas, do ponto de vista do módulo de ligas: só o que o
+ * `UsersService` expõe.
+ *
+ * `listedTimes` existe para um teste específico — o de que a base de usuários
+ * não é consultada quando quem pede não participa da liga. Sem isso, "não
+ * vazou" seria uma afirmação sobre o retorno, não sobre o acesso.
+ */
+function usersServiceFake(users: PublicUser[]) {
+  const state = {
+    listedTimes: 0,
+    listPublic(): Promise<PublicUser[]> {
+      state.listedTimes += 1;
+
+      return Promise.resolve(users);
+    },
+  };
+
+  return state;
+}
+
+async function buildService(
+  repository: ReturnType<typeof repositoryFake>,
+  users: ReturnType<typeof usersServiceFake> = usersServiceFake([]),
+) {
   const moduleRef = await Test.createTestingModule({
     providers: [
       LeaguesService,
       { provide: LeaguesRepository, useValue: repository },
+      { provide: UsersService, useValue: users },
     ],
   }).compile();
 
@@ -259,5 +299,90 @@ describe('LeaguesService.listForParticipant', () => {
 
     // Vazio é resposta normal, não erro: a tela tem estado próprio para isso.
     await expect(service.listForParticipant(CRIADOR)).resolves.toEqual([]);
+  });
+});
+
+describe('LeaguesService.listCandidates', () => {
+  const LIGA = 'id-da-liga';
+  const OUTRA_PESSOA = 'id-de-outra-pessoa';
+
+  const CADASTRADOS: PublicUser[] = [
+    { id: CRIADOR, name: 'Ana Prado' },
+    { id: 'id-do-bruno', name: 'Bruno Lima' },
+    { id: 'id-da-carla', name: 'Carla Dias' },
+  ];
+
+  it('marca quem já participa da liga', async () => {
+    const repository = repositoryFake();
+    repository.seedParticipants(LIGA, [CRIADOR, 'id-da-carla']);
+    const service = await buildService(repository, usersServiceFake(CADASTRADOS));
+
+    const candidates = await service.listCandidates(LIGA, CRIADOR);
+
+    // Quem já está dentro continua na lista, marcado: é o que diferencia "já
+    // está na liga" de "não tem conta" para quem procura o amigo.
+    const marcados = new Map(
+      candidates.map((c) => [c.name, c.alreadyParticipant]),
+    );
+    expect(marcados.get('Carla Dias')).toBe(true);
+    expect(marcados.get('Bruno Lima')).toBe(false);
+  });
+
+  it('não inclui quem está pedindo a lista', async () => {
+    const repository = repositoryFake();
+    repository.seedParticipants(LIGA, [CRIADOR]);
+    const service = await buildService(repository, usersServiceFake(CADASTRADOS));
+
+    const candidates = await service.listCandidates(LIGA, CRIADOR);
+
+    // Ninguém se convida, e a pessoa já sabe que está dentro.
+    expect(candidates.map((c) => c.name)).toEqual(['Bruno Lima', 'Carla Dias']);
+  });
+
+  it('preserva a ordem em que as contas vieram', async () => {
+    const repository = repositoryFake();
+    repository.seedParticipants(LIGA, [CRIADOR]);
+    const service = await buildService(repository, usersServiceFake(CADASTRADOS));
+
+    const candidates = await service.listCandidates(LIGA, CRIADOR);
+
+    // A ordem alfabética vem da consulta de contas; o service não reordena.
+    expect(candidates.map((c) => c.name)).toEqual(['Bruno Lima', 'Carla Dias']);
+  });
+
+  it('recusa quem não participa da liga', async () => {
+    const repository = repositoryFake();
+    repository.seedParticipants(LIGA, [CRIADOR]);
+    const service = await buildService(repository, usersServiceFake(CADASTRADOS));
+
+    await expect(
+      service.listCandidates(LIGA, OUTRA_PESSOA),
+    ).rejects.toThrow(NotALeagueParticipantError);
+  });
+
+  it('não consulta a base de usuários quando quem pede não participa', async () => {
+    const repository = repositoryFake();
+    repository.seedParticipants(LIGA, [CRIADOR]);
+    const users = usersServiceFake(CADASTRADOS);
+    const service = await buildService(repository, users);
+
+    await expect(
+      service.listCandidates(LIGA, OUTRA_PESSOA),
+    ).rejects.toThrow(NotALeagueParticipantError);
+
+    // A autorização vem antes da leitura, não depois: a base de contas não é
+    // nem tocada por quem está de fora.
+    expect(users.listedTimes).toBe(0);
+  });
+
+  it('trata liga inexistente como liga de que a pessoa não participa', async () => {
+    const repository = repositoryFake();
+    const service = await buildService(repository, usersServiceFake(CADASTRADOS));
+
+    // Mesmo erro dos dois casos, de propósito: assim não se descobre a
+    // existência de ligas alheias testando ids.
+    await expect(
+      service.listCandidates('liga-que-nao-existe', CRIADOR),
+    ).rejects.toThrow(NotALeagueParticipantError);
   });
 });

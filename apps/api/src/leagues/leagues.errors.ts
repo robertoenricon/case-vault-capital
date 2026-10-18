@@ -19,6 +19,52 @@ export class MalformedLeagueDateError extends DomainError {
 }
 
 /**
+ * Id de liga que não tem forma de UUID v7.
+ *
+ * Existe para a mensagem ficar em português como as outras: sem isto, o
+ * `ParseUUIDPipe` responderia o texto padrão do Nest, em inglês.
+ */
+export class MalformedLeagueIdError extends DomainError {
+  readonly kind = 'invalid' as const;
+  readonly publicMessage = 'Liga não encontrada.';
+
+  /**
+   * @param detail o que a validação reclamou. Vem do `ParseUUIDPipe`, que
+   * entrega a própria mensagem de erro à fábrica de exceção — não o valor
+   * recebido. Vai para o log, não para a resposta.
+   */
+  constructor(detail: string) {
+    super(`Id de liga fora do formato esperado (${detail})`);
+    this.name = 'MalformedLeagueIdError';
+  }
+}
+
+/**
+ * Quem está chamando não participa da liga — ou a liga não existe.
+ *
+ * Os dois casos caem aqui de propósito, com a mesma resposta: distinguir
+ * "não existe" de "existe e você está fora" entregaria a existência de ligas
+ * alheias a quem for tentando ids. Como a resposta é a mesma, não há o que
+ * descobrir por tentativa.
+ *
+ * É `forbidden` e não `unauthorized`: a sessão está válida, e entrar de novo
+ * não mudaria nada.
+ */
+export class NotALeagueParticipantError extends DomainError {
+  readonly kind = 'forbidden' as const;
+  readonly publicMessage = 'Você não participa desta liga.';
+
+  constructor(leagueId: string, userId: string) {
+    // Liga e usuário vão para o log, não para a resposta: é o que permite
+    // investigar uma sequência de tentativas sem contar nada a quem tentou.
+    super(
+      `Acesso negado à liga ${leagueId}: o usuário ${userId} não participa dela (ou a liga não existe)`,
+    );
+    this.name = 'NotALeagueParticipantError';
+  }
+}
+
+/**
  * Liga com início antes de hoje.
  *
  * Decisão de produto: bloquear. Apurar o que aconteceu antes de a liga existir

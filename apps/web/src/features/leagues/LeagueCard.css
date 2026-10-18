@@ -2,6 +2,9 @@
  * Card de uma liga na lista. Fica junto do componente, e não no CSS do
  * dashboard, para o card não depender de quem o renderiza — a lista decide o
  * espaçamento entre os cards, o card decide como ele é por dentro.
+ *
+ * O botão de convidar usa `.button--ghost` de authForm.css: o dourado cheio é
+ * do "Criar liga", a ação principal da tela.
  */
 
 .league-card {
@@ -13,18 +16,13 @@
   background: var(--surface-raised);
   border: 1px solid var(--edge);
   border-radius: 12px;
-  transition: border-color 0.2s var(--ease-out);
 
-  &:hover {
-    border-color: var(--edge-strong);
-  }
-
-  @media (max-width: 480px) {
-    /* A etiqueta desce para baixo do nome: lado a lado, as duas informações
-       disputam uma largura que não existe no celular. */
+  @media (max-width: 620px) {
+    /* Situação e botão descem para baixo do nome: na mesma linha, as três
+       informações disputam uma largura que não existe no celular. */
     flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+    align-items: stretch;
+    gap: 14px;
     padding: 16px 18px;
   }
 }
@@ -33,7 +31,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  /* Nome comprido encolhe aqui em vez de empurrar a etiqueta para fora. */
+  /* Nome comprido encolhe aqui em vez de empurrar o botão para fora. */
   min-width: 0;
 }
 
@@ -50,6 +48,20 @@
   font-size: 14px;
   color: var(--cream-soft);
   font-variant-numeric: tabular-nums;
+}
+
+/* Situação e ação, à direita do card. */
+.league-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+
+  /* No celular a etiqueta fica à esquerda e o botão à direita, na mesma linha:
+     as duas são curtas e cabem. */
+  @media (max-width: 620px) {
+    justify-content: space-between;
+  }
 }
 
 /*
@@ -83,4 +95,12 @@
   color: var(--cream-soft);
   background: var(--surface-overlay);
   border-color: var(--edge);
+}
+
+/* Menor que o botão padrão do formulário: é ação de item de lista, não de tela. */
+.league-card__invite {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  font-size: 14px;
+  white-space: nowrap;
 }

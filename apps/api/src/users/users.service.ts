@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PASSWORD_HASHER } from './password-hasher.js';
 import type { PasswordHasher } from './password-hasher.js';
 import { UsersRepository } from './users.repository.js';
-import type { StoredUser } from './users.repository.js';
+import type { PublicUser, StoredUser } from './users.repository.js';
 
 /** Entrada da regra, já validada na borda. Texto puro da senha só existe aqui e no hasher. */
 export type RegisterUserInput = {
@@ -37,6 +37,18 @@ export class UsersService {
     const passwordHash = await this.hasher.hash(input.password);
 
     return this.users.create({ name: input.name, email, passwordHash });
+  }
+
+  /**
+   * Todas as contas, como podem ser vistas por outra pessoa: id e nome.
+   *
+   * Existe para o módulo de ligas montar a lista de quem pode ser convidado.
+   * Fica aqui, e não lá, porque quem é dono das contas é este módulo: o de
+   * ligas pergunta "quem existe?" e recebe o mínimo — nunca alcança o e-mail
+   * nem o hash de ninguém.
+   */
+  async listPublic(): Promise<PublicUser[]> {
+    return this.users.findAll();
   }
 
   /**

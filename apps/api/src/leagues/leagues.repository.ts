@@ -69,4 +69,24 @@ export class LeaguesRepository {
       select: { id: true, name: true, startsAt: true, endsAt: true },
     });
   }
+
+  /**
+   * Ids de quem participa da liga.
+   *
+   * Uma consulta serve a dois usos no service: dizer se quem está chamando
+   * participa (autorização) e marcar, na lista de candidatos, quem já está
+   * dentro. Duas consultas separadas para isso poderiam discordar entre si se
+   * alguém entrasse na liga no meio do caminho.
+   *
+   * Liga inexistente devolve lista vazia, e não erro: quem decide o que isso
+   * significa é o service.
+   */
+  async findParticipantUserIds(leagueId: string): Promise<string[]> {
+    const participants = await this.prisma.leagueParticipant.findMany({
+      where: { leagueId },
+      select: { userId: true },
+    });
+
+    return participants.map((participant) => participant.userId);
+  }
 }
