@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { formatUsd } from './leagueDisplay'
+import { formatUsd } from '../../lib/money'
+import { BitcoinTicker } from '../quotes/BitcoinTicker'
 import type { League } from './leaguesApi'
 import { useLeagueParticipants } from './useLeagueParticipants'
 import '../auth/authForm.css'
@@ -133,6 +134,11 @@ export function ParticipantsModal({
             Da liga <strong>{league.name}</strong>.
           </p>
         </header>
+
+        {/* Cotação no header, acima da lista: é o preço com que a liga opera, e
+            vem antes dos saldos porque é o que dá sentido a eles. Busca própria
+            e estado próprio — a Binance fora do ar não tira a lista do ar. */}
+        <BitcoinTicker accessToken={accessToken} />
 
         {participantsSection()}
 

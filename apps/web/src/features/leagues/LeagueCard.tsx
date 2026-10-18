@@ -1,4 +1,5 @@
-import { STATUS_LABEL, formatPeriod, formatUsd } from './leagueDisplay'
+import { formatUsd } from '../../lib/money'
+import { STATUS_LABEL, formatPeriod } from './leagueDisplay'
 import type { League } from './leaguesApi'
 import '../auth/authForm.css'
 import './LeagueCard.css'

@@ -29,7 +29,7 @@ export type League = {
    *
    * Texto, e não `number`, porque é dinheiro: a API manda `"10000"` de
    * propósito, e o valor atravessa a tela sem virar ponto flutuante. Quem
-   * formata é `formatUsd` (ver leagueDisplay.ts).
+   * formata é `formatUsd` (ver lib/money.ts).
    */
   cashBalance: string
 }
