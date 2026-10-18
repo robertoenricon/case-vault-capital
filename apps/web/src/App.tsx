@@ -33,7 +33,7 @@ function App() {
   }
 
   if (session) {
-    return <DashboardPage user={session.user} onLogout={handleLogout} />
+    return <DashboardPage session={session} onLogout={handleLogout} />
   }
 
   if (screen === 'register') {
