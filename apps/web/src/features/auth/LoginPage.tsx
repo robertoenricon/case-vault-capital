@@ -11,13 +11,24 @@ export type LoginCredentials = {
 type LoginPageProps = {
   onSubmit: (credentials: LoginCredentials) => void
   onRegisterClick: () => void
+  /** Aviso vindo de outra tela, como a confirmação de que a conta foi criada. */
+  notice?: string
+  /** E-mail já preenchido: quem acabou de se cadastrar não deve digitar de novo. */
+  initialEmail?: string
 }
 
 /**
  * Tela de login
  */
-export function LoginPage({ onSubmit, onRegisterClick }: LoginPageProps) {
-  const [email, setEmail] = useState('')
+export function LoginPage({
+  onSubmit,
+  onRegisterClick,
+  notice,
+  initialEmail,
+}: LoginPageProps) {
+  // Valor inicial, não estado espelhado: a partir daqui quem manda no campo é
+  // quem está digitando, e a tela é montada de novo quando vem do cadastro.
+  const [email, setEmail] = useState(initialEmail ?? '')
   const [password, setPassword] = useState('')
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -35,6 +46,13 @@ export function LoginPage({ onSubmit, onRegisterClick }: LoginPageProps) {
             Acesse sua conta para operar nas suas ligas.
           </p>
         </header>
+
+        {/* `role="status"` e não `alert`: é confirmação, não problema. */}
+        {notice && (
+          <p className="form__alert form__alert--success" role="status">
+            {notice}
+          </p>
+        )}
 
         <div className="field">
           <label className="field__label" htmlFor="email">

@@ -115,6 +115,29 @@
   }
 }
 
+/*
+ * Aviso do formulário inteiro, não de um campo: resposta do servidor ao envio
+ * (e-mail já em uso, API fora do ar) ou confirmação vinda da outra tela.
+ */
+.form__alert {
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.form__alert--error {
+  color: var(--danger);
+  background: hsl(var(--danger-hsl) / 0.1);
+  border-color: hsl(var(--danger-hsl) / 0.3);
+}
+
+.form__alert--success {
+  color: var(--gold-bright);
+  background: hsl(var(--gold-hsl) / 0.1);
+  border-color: hsl(var(--gold-hsl) / 0.3);
+}
+
 .button {
   font-weight: 500;
   padding: 11px 16px;
@@ -124,6 +147,16 @@
   transition:
     background-color 0.2s var(--ease-out),
     border-color 0.2s var(--ease-out);
+
+  /*
+   * Enquanto o cadastro está indo para a API. O cursor e a opacidade mudam, mas
+   * a cor de fundo continua a do botão: o `:disabled` aqui é um estado de
+   * espera de segundos, não um botão permanentemente indisponível.
+   */
+  &:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
 }
 
 /* Dourado sobre fundo escuro: mesmo par de cores que o site usa em ::selection. */

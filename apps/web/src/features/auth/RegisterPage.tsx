@@ -8,15 +8,17 @@ import {
   validateRegisterForm,
 } from './registerValidation'
 import type {
-  RegisterData,
   RegisterFieldName,
   RegisterFormValues,
 } from './registerValidation'
+import { useRegister } from './useRegister'
+import type { RegisteredUser } from './registerApi'
 import './authForm.css'
 import './RegisterPage.css'
 
 type RegisterPageProps = {
-  onSubmit: (data: RegisterData) => void
+  /** Chamado quando a conta já existe no banco, com o que a API devolveu. */
+  onRegistered: (user: RegisteredUser) => void
   onLoginClick: () => void
 }
 
@@ -65,7 +67,10 @@ function describedBy(id: string, error?: string, hint?: string) {
 /**
  * Componente da página de registro, incluindo o formulário e a lógica de validação de cliente.
  */
-export function RegisterPage({ onSubmit, onLoginClick }: RegisterPageProps) {
+export function RegisterPage({ onRegistered, onLoginClick }: RegisterPageProps) {
+  // A requisição e seus estados moram no hook; aqui só se decide o que mostrar.
+  const { submit, submitting, error: requestError } = useRegister(onRegistered)
+
   const [values, setValues] =
     useState<RegisterFormValues>(EMPTY_REGISTER_VALUES)
   const [touched, setTouched] = useState<
@@ -95,9 +100,11 @@ export function RegisterPage({ onSubmit, onLoginClick }: RegisterPageProps) {
     event.preventDefault()
     setSubmitTried(true)
 
+    // Validação do cliente é só para dar resposta imediata: o backend valida
+    // tudo de novo, e é dele que vem a palavra final.
     if (hasErrors(errors)) return
 
-    onSubmit(toRegisterData(values))
+    void submit(toRegisterData(values))
   }
 
   const nameError = visibleError('name')
@@ -218,8 +225,20 @@ export function RegisterPage({ onSubmit, onLoginClick }: RegisterPageProps) {
           </div>
         </Field>
 
-        <button type="submit" className="button button--primary">
-          Criar conta
+        {/* Erro que veio do servidor (e-mail em uso, API fora do ar). Fica junto
+            do botão porque é a resposta ao clique, não a um campo específico. */}
+        {requestError && (
+          <p className="form__alert form__alert--error" role="alert">
+            {requestError}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          className="button button--primary"
+          disabled={submitting}
+        >
+          {submitting ? 'Criando conta…' : 'Criar conta'}
         </button>
 
         <p className="register__separator">
