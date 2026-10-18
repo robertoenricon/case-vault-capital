@@ -50,6 +50,20 @@ o container.
 docker compose exec db psql -U vault -d vault_capital   # abre o psql no banco de dev
 ```
 
+#### Migrations (Prisma)
+
+O schema vive em `apps/api/prisma/schema.prisma` e é a única fonte da modelagem.
+O banco **nunca** é alterado à mão: toda mudança vira uma migration versionada em
+`apps/api/prisma/migrations/`, aplicada automaticamente em quem der `migrate dev`.
+
+```bash
+# aplica no banco local as migrations que ainda faltam
+docker compose exec api npx prisma migrate deploy
+
+# criar uma migration nova depois de editar o schema.prisma
+docker compose exec api npx prisma migrate dev --name descricao_curta
+```
+
 Do host (DBeaver, Navicat, etc.), use as variaveis do .env:
 - HOST: localhost
 - Port: POSTGRES_PORT
@@ -61,6 +75,7 @@ Do host (DBeaver, Navicat, etc.), use as variaveis do .env:
 
 ```
 apps/api/          — Dockerfile de desenvolvimento
+apps/api/prisma/   — schema do banco e migrations versionadas
 apps/web/          — Dockerfile de desenvolvimento
 docker-compose.yml — orquestra api, web e o banco
 .env.example       — variáveis de ambiente (copiar para .env)

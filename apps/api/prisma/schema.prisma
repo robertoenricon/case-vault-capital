@@ -1,0 +1,39 @@
+// Fonte única da modelagem. Toda alteração aqui vira uma migration SQL
+// versionada em prisma/migrations — o banco nunca é alterado à mão.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Conta de acesso à plataforma. A identidade é global: a mesma conta participa
+/// de várias ligas. O vínculo com a liga (e o saldo) mora em outra tabela, não aqui.
+model User {
+  // UUID v7 gerado pela aplicação. v7 carrega o instante de criação no prefixo,
+  // então as chaves entram quase em ordem e o índice primário não fragmenta como
+  // com v4 aleatório. Preço: INSERT feito direto no psql precisa informar o id,
+  // porque o default vive no client e não na coluna.
+  id String @id @default(uuid(7)) @db.Uuid
+
+  name String @db.VarChar(120)
+
+  // Guardado sempre normalizado (trim + lowercase) pela aplicação: o UNIQUE do
+  // Postgres compara byte a byte, e sem isso "ana@mail.com" e "Ana@Mail.com"
+  // virariam duas contas.
+  email String @unique @db.VarChar(255)
+
+  // Hash da senha, nunca a senha. O nome da coluna é parte da defesa: gravar
+  // texto puro aqui fica obviamente errado na leitura. Sem limite de tamanho
+  // porque a lib de hash ainda não foi escolhida e cada uma produz um tamanho
+  // diferente (bcrypt 60, argon2 ~100).
+  passwordHash String @map("password_hash")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}

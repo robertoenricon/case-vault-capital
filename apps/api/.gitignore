@@ -1,0 +1,7 @@
+# node_modules, .env e dist já são ignorados pelo .gitignore da raiz.
+# Aqui fica só o que é específico da API.
+
+# Prisma Client é gerado a partir do schema (npx prisma generate).
+# Código gerado não entra no histórico: versioná-lo só criaria um diff enorme
+# a cada migration e um jeito de o client ficar fora de sincronia com o schema.
+/src/generated/prisma

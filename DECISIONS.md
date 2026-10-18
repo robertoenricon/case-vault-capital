@@ -11,6 +11,7 @@ não só a escolha.
 ## 2. Arquitetura:
 - Ambiente local em Docker.
 - PostgreSQL.
+- Prisma para Migrate.
 
 **Principais decisões técnicas:**
 - Docker.
