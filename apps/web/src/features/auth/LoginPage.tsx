@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import './authForm.css'
 import './LoginPage.css'
 
 export type LoginCredentials = {

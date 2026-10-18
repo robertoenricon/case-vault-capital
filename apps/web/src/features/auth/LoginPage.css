@@ -1,3 +1,5 @@
+/* Moldura da tela de login. Campos e botões vêm de authForm.css. */
+
 .login {
   min-height: 100svh;
   display: grid;
@@ -49,77 +51,6 @@
 .login__subtitle {
   font-size: 15px;
   color: var(--cream-soft);
-}
-
-/* Campo de formulário: rótulo acima, input abaixo. */
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.field__label {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* O input usa o fundo mais profundo da paleta para "afundar" dentro do card. */
-.field__input {
-  width: 100%;
-  padding: 11px 12px;
-  background: var(--surface);
-  border: 1px solid var(--edge);
-  border-radius: 8px;
-  transition:
-    border-color 0.2s var(--ease-out),
-    box-shadow 0.2s var(--ease-out);
-
-  &::placeholder {
-    color: var(--cream-soft);
-  }
-
-  &:hover {
-    border-color: var(--edge-strong);
-  }
-
-  /* Substitui o anel global de foco por borda + halo, que cabe melhor no campo. */
-  &:focus-visible {
-    outline: none;
-    border-color: var(--gold);
-    box-shadow: 0 0 0 3px hsl(var(--gold-hsl) / 0.2);
-  }
-}
-
-.button {
-  font-weight: 500;
-  padding: 11px 16px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  transition:
-    background-color 0.2s var(--ease-out),
-    border-color 0.2s var(--ease-out);
-}
-
-/* Dourado sobre fundo escuro: mesmo par de cores que o site usa em ::selection. */
-.button--primary {
-  color: var(--surface);
-  background: var(--gold);
-
-  &:hover {
-    background: var(--gold-bright);
-  }
-}
-
-.button--ghost {
-  color: var(--gold);
-  background: var(--surface-overlay);
-  border-color: var(--edge);
-
-  &:hover {
-    background: var(--surface-overlay-hover);
-    border-color: var(--edge-strong);
-  }
 }
 
 /* Separador com texto no meio da linha. */

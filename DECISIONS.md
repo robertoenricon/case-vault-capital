@@ -15,6 +15,9 @@ não só a escolha.
 
 **Principais decisões técnicas:**
 - Docker.
+Cadastro:
+- Cadastro de novo usuário, minimo de 8 caracteres, isso é melhor do que não ter um minimo e o usuário cadastrar uma senha que seja facil de memorizar mas, facil de quebrar também, exemplo: "Ps1".
+- Validação para verificar se a senha foi digitada corretamente, com a opção de "Confirmar nova senha".
 
 **Do que se abriu mão:**
 
