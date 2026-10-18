@@ -46,9 +46,20 @@ model User {
 /// compartilhada: quem participa dela mora em `LeagueParticipant`, nunca aqui —
 /// uma coluna de participante na própria liga quebraria o compartilhamento
 /// (cada linha viraria uma pessoa solta, sem nada que as agrupasse).
+///
+/// Não existe coluna de dono nem de papel: numa liga entre amigos não há
+/// permissão a conceder, então quem cria entra como participante comum. A
+/// consequência é assumida — "quem criou" não é recuperável depois. Se um dia
+/// aparecer encerrar liga ou remover participante, o papel nasce ali, com
+/// migration própria, e não especulado agora.
 model League {
   // Mesmo padrão de chave do `User`: UUID v7 gerado pela aplicação.
   id String @id @default(uuid(7)) @db.Uuid
+
+  // Nome que o grupo dá à competição. Sem UNIQUE de propósito: dois grupos de
+  // amigos podem ter a sua "Liga dos Amigos", e a identidade da liga é o id —
+  // o nome é rótulo, não chave.
+  name String @db.VarChar(60)
 
   // Janela de disputa. `Timestamptz` e não `Date`: a liga começa e termina em
   // um instante, e o ranking precisa saber se a ordem caiu dentro dela — com
