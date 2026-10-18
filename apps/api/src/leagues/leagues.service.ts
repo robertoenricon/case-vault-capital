@@ -65,6 +65,20 @@ export type LeagueCandidate = {
 };
 
 /**
+ * Participante da liga, como a lista da tela o mostra: só o nome.
+ *
+ * Nem e-mail (que não sai da aplicação) nem data de entrada — a decisão de
+ * produto foi mostrar apenas quem está dentro. Quando o ranking existir, é aqui
+ * que patrimônio e posição entram, e aí a data de entrada volta a fazer
+ * diferença (quem entrou com a liga em andamento disputou menos tempo).
+ */
+export type LeagueParticipant = {
+  /** Id da conta. Serve de chave estável na lista da tela. */
+  id: string;
+  name: string;
+};
+
+/**
  * Convite pendente como a tela de quem foi convidado o mostra: o nome da liga,
  * o período e a situação dela — é isso que a pessoa precisa para decidir se
  * entra.
@@ -138,6 +152,43 @@ export class LeaguesService {
     return leagues
       .map((league) => ({ ...league, status: leagueStatusAt(league, now) }))
       .sort(compareForListing);
+  }
+
+  /**
+   * Quem participa da liga, na ordem de entrada.
+   *
+   * Uma regra fica aqui: **só participante enxerga a lista**. E a autorização
+   * sai da própria lista — quem pede precisa estar nela. Isso é de propósito,
+   * em vez de consultar os ids antes e os nomes depois: duas consultas
+   * poderiam discordar se alguém entrasse na liga entre uma e outra, e uma
+   * delas seria trabalho repetido.
+   *
+   * Liga que não existe devolve lista vazia no repositório, então quem pede não
+   * está nela e recebe o mesmo erro de quem está de fora — como nas outras
+   * rotas, não há como descobrir liga alheia testando ids.
+   *
+   * Consequência conhecida: quem participa vê o nome dos outros participantes.
+   * É inerente ao produto (a liga é entre amigos e o ranking vai mostrar os
+   * mesmos nomes), e é bem menos do que a lista de convite já expõe — ali
+   * aparecem todas as contas da plataforma.
+   */
+  async listParticipants(
+    leagueId: string,
+    requesterId: string,
+  ): Promise<LeagueParticipant[]> {
+    const participants = await this.leagues.findParticipants(leagueId);
+
+    if (!participants.some((p) => p.userId === requesterId)) {
+      throw new NotALeagueParticipantError(leagueId, requesterId);
+    }
+
+    // A ordem vem da consulta e não é refeita aqui: ela depende de coluna
+    // (`joined_at`), diferente da ordem da lista de ligas, que depende da
+    // situação calculada.
+    return participants.map((participant) => ({
+      id: participant.userId,
+      name: participant.name,
+    }));
   }
 
   /**

@@ -1,0 +1,107 @@
+/*
+ * Modal de participantes. Botões vêm de authForm.css; aqui só a caixa, o fundo
+ * e a lista de nomes.
+ *
+ * As medidas acompanham o modal de convite de propósito: são duas listas de
+ * pessoas abertas a partir do mesmo card, e caixas de larguras diferentes
+ * fariam a tela pular de uma para a outra.
+ */
+
+/*
+ * Sem `display` declarado de propósito — quem controla isso é o `showModal()`,
+ * e um `display: flex` aqui deixaria o modal visível mesmo fechado.
+ */
+.participants {
+  width: 100%;
+  max-width: 460px;
+  padding: 0;
+  color: var(--cream);
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dark);
+}
+
+.participants::backdrop {
+  background: hsl(28 12% 3% / 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.participants__box {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+
+  @media (max-width: 480px) {
+    padding: 22px 18px;
+  }
+}
+
+.participants__title {
+  font-size: 24px;
+  letter-spacing: -0.3px;
+  margin: 0 0 6px;
+}
+
+.participants__subtitle {
+  font-size: 14px;
+  color: var(--cream-soft);
+}
+
+.participants__loading {
+  font-size: 15px;
+  color: var(--cream-soft);
+  padding: 20px 0;
+}
+
+.participants__retry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/*
+ * Lista de nomes. Altura limitada com rolagem própria, como na lista de
+ * convite: uma liga grande não pode empurrar o botão de fechar fora da tela.
+ */
+.participants__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.participants__person {
+  display: flex;
+  align-items: center;
+  padding: 11px 2px;
+
+  /* Separador entre pessoas, sem linha sobrando no fim da lista. */
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--edge);
+  }
+}
+
+.participants__name {
+  font-size: 15px;
+  /* Nome de até 120 caracteres não pode esticar a caixa do modal. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Aviso da liga de uma pessoa só: orientação, não erro — por isso discreto. */
+.participants__alone {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--cream-soft);
+}
+
+.participants__footer {
+  display: flex;
+  justify-content: flex-end;
+}

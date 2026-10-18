@@ -13,6 +13,8 @@ Cadastro de conta:
 - Em um MVP entre amigos, optei por mostrar se já existe um e-mail cadastrado ao efetuar novo cadastro.
 - Lista de ligas, Liga encerrada continua na lista.
 - Liga Ordem: em andamento primeiro, depois agendadas, encerradas no fim; dentro de cada grupo, a de início mais recente antes.
+- Lista de participantes: mostro só o nome de cada um.
+- Ordem dos participantes: ordem de entrada na liga.
 
 ## 2. Arquitetura:
 - Ambiente local em Docker.
@@ -40,6 +42,7 @@ Liga:
 - Como é uma liga entre amigos, não tem necessidade de permissões.
 - Criado da Liga entra como participante, liga não tem "dono exclusivo que adminstra".
 - Duração da liga em horas é o ciclo completo do dia, 24hs completas.
+- Na listagem da liga aparecem em ordem de entrada.
 
 **Do que se abriu mão:**
 - LIB bcrypt nativo, mais rapido, so que eu ia ter que mexer na build, como o tempo é curto, preferi deixar assim.
@@ -53,6 +56,9 @@ Liga:
 - Criei uma feature, onde é listado todos os usuarios cadastrados na aplicação, assim, facilita o envio de convites para participar da Liga, já que é um MVP entre amigos.
 - Só é permitido participar de uma liga, se ela está agendada ou em andamento, liga encerrada sistema recusa o aceite.
 - Cirei uma tabela, responsável por armazenar os convites pendentes, "aceitar" virou um transação (apaga convite e cria participação, simples e objetivo).
+- Lista de participantes da liga, num modal que abre clicando no nome da liga.
+- A autorização sai da própria consulta: quem pede a lista precisa estar nela.
+
 
 ## 4. O que ficou de fora:
 - Rate limit no cadastro. A rota é pública e hoje aceita cadastro em volume, não tratei.

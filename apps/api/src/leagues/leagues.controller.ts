@@ -22,6 +22,7 @@ import {
 import { LeaguesService } from './leagues.service.js';
 import type {
   LeagueCandidate,
+  LeagueParticipant,
   LeagueWithStatus,
   PendingInvite,
 } from './leagues.service.js';
@@ -47,6 +48,15 @@ type LeagueCandidateResponse = {
   name: string;
   alreadyParticipant: boolean;
   invitePending: boolean;
+};
+
+/**
+ * Participante na lista da liga. Só nome, por decisão de produto — e sem
+ * e-mail, pela mesma regra dos candidatos: e-mail de terceiro não sai daqui.
+ */
+type LeagueParticipantResponse = {
+  id: string;
+  name: string;
 };
 
 /** Convite pendente, como a tela de quem foi convidado precisa dele. */
@@ -209,6 +219,40 @@ export class LeaguesController {
 
     return candidates.map(toCandidateResponse);
   }
+
+  /**
+   * Quem participa da liga.
+   *
+   * Rota no escopo da liga, como a de candidatos, e é a liga que dá o ponto de
+   * autorização: quem não participa recebe 403 pelo
+   * `NotALeagueParticipantError`, com a mesma resposta de liga inexistente.
+   *
+   * Nunca devolve lista vazia na prática — toda liga tem ao menos quem a criou,
+   * e quem não está dentro não chega a ler a resposta. Ainda assim o 200 com
+   * `[]` é o contrato: a tela não depende de o array ter conteúdo.
+   */
+  @Get(':leagueId/participants')
+  async listParticipants(
+    @Param('leagueId', PARSE_LEAGUE_ID) leagueId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LeagueParticipantResponse[]> {
+    const participants = await this.leagues.listParticipants(leagueId, user.id);
+
+    return participants.map(toParticipantResponse);
+  }
+}
+
+/**
+ * Mesma regra das outras: campo a campo. Aqui a lista é curta de propósito —
+ * `id` e `name`, nada mais sai sobre a conta de outra pessoa.
+ */
+function toParticipantResponse(
+  participant: LeagueParticipant,
+): LeagueParticipantResponse {
+  return {
+    id: participant.id,
+    name: participant.name,
+  };
 }
 
 /**

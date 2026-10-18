@@ -7,27 +7,45 @@ type LeagueCardProps = {
   league: League
   /** Clique em "Convidar amigos". Quem decide o que acontece é o dashboard. */
   onInvite: () => void
+  /** Clique no nome da liga: abre os participantes. Quem decide é o dashboard. */
+  onShowParticipants: () => void
 }
 
 /**
- * Uma liga na lista: nome, período, situação e a ação de convidar.
+ * Uma liga na lista: nome, período, situação e as ações.
  *
- * O card não é clicável: a ação está num botão próprio, com rótulo. Card
- * inteiro clicável obriga a adivinhar o que o clique faz e atrapalha quando
- * aparecer uma segunda ação na linha (abrir a liga, ver ranking) — aí dois
- * alvos disputariam o mesmo clique.
+ * O card **inteiro** não é clicável: cada ação tem seu próprio alvo. Card
+ * inteiro clicável obriga a adivinhar o que o clique faz e brigaria com o botão
+ * de convidar, que vive dentro dele.
  *
- * Como o nome não vive mais dentro de um `<button>` (que aceita só conteúdo de
- * frase), ele volta a ser `<h3>`: cada liga tem título de verdade na lista.
+ * O nome é um `<button>` dentro do `<h3>`: continua sendo o título da liga na
+ * lista (e por isso navegável como cabeçalho por leitor de tela), mas é também
+ * o que abre os participantes. `<h3>` aceita conteúdo de frase, e `<button>` é
+ * conteúdo de frase — a estrutura é válida, diferente do inverso.
  *
  * Componente de apresentação: não busca nada e não calcula nada. Formata as
  * datas que vieram em ISO e traduz a situação.
  */
-export function LeagueCard({ league, onInvite }: LeagueCardProps) {
+export function LeagueCard({
+  league,
+  onInvite,
+  onShowParticipants,
+}: LeagueCardProps) {
   return (
     <li className="league-card">
       <div className="league-card__info">
-        <h3 className="league-card__name">{league.name}</h3>
+        <h3 className="league-card__name">
+          {/* O rótulo acessível diz o que o clique faz: o texto visível é só o
+              nome da liga, que sozinho não anuncia uma ação. */}
+          <button
+            type="button"
+            className="league-card__name-button"
+            onClick={onShowParticipants}
+            aria-label={`Ver participantes de ${league.name}`}
+          >
+            {league.name}
+          </button>
+        </h3>
         <p className="league-card__period">
           {formatPeriod(league.startsAt, league.endsAt)}
         </p>

@@ -44,6 +44,40 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * O nome é um botão, mas não parece um: herda a tipografia do `<h3>` e zera o
+ * visual que o navegador dá a `<button>` (fundo, borda, fonte de formulário).
+ * O que anuncia a ação é o cursor e o sublinhado no hover — um botão dourado
+ * aqui competiria com "Criar liga" e com "Convidar amigos".
+ *
+ * `inherit` na fonte e na cor, e não os valores repetidos: o título decide como
+ * o nome aparece, este bloco só desfaz o estilo padrão do botão.
+ */
+.league-card__name-button {
+  display: block;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--gold);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* Foco visível com o anel do navegador afastado do texto: sem isto, quem
+     navega por teclado perde de vista onde está. */
+  &:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+}
+
 .league-card__period {
   font-size: 14px;
   color: var(--cream-soft);

@@ -40,6 +40,27 @@ export type StoredInvite = {
   endsAt: Date;
 };
 
+/**
+ * Participante como a lista da liga precisa dele: a conta e o nome dela.
+ *
+ * O nome vem por join de `users`, nunca copiado para a tabela de participação
+ * (ver schema.prisma) — copiar criaria duas verdades para o mesmo dado, e a
+ * cópia envelheceria no dia em que a pessoa trocasse o nome.
+ *
+ * `joinedAt` **não** sai: a tela mostra só o nome, por decisão registrada. O
+ * campo existe na tabela e serve à ordenação, mas não atravessa esta camada
+ * enquanto ninguém o exibir.
+ */
+export type StoredParticipant = {
+  /**
+   * Id da **conta**, não da participação. É o id que a aplicação já usa para
+   * falar de pessoas (o convite recebe este) — o da linha de participação não
+   * serviria para nada fora do banco.
+   */
+  userId: string;
+  name: string;
+};
+
 /** Violação de índice único no Postgres, pelo código de erro do Prisma. */
 const UNIQUE_VIOLATION = 'P2002';
 
@@ -119,9 +140,42 @@ export class LeaguesRepository {
   }
 
   /**
-   * Uma liga pelo id, ou `null`. **Não filtra por participação** — é o único
-   * método aqui que não filtra, e por isso só pode ser chamado depois de a
-   * autorização passar no service.
+   * Quem participa da liga, com o nome de cada um, **na ordem de entrada**.
+   *
+   * A ordem é decisão de produto: quem criou a liga entrou junto com ela, então
+   * é sempre o primeiro da lista — é o que recupera na tela o "dono" que a
+   * modelagem decidiu não gravar como coluna. O desempate pelo id existe porque
+   * a liga e a participação do criador saem de um único INSERT: com `joinedAt`
+   * idêntico, a ordem ficaria à mercê do que o Postgres devolvesse primeiro, e
+   * o id é UUID v7 (crescente no tempo).
+   *
+   * Ordenar aqui, e não no service como na listagem de ligas, porque esta ordem
+   * o banco conhece: ela depende de coluna, não da situação calculada.
+   *
+   * Não filtra por quem está pedindo — e aqui isso não é brecha: é **esta**
+   * consulta que dá a autorização no service (quem pede tem de estar na lista),
+   * em vez de uma segunda consulta que poderia discordar dela.
+   */
+  async findParticipants(leagueId: string): Promise<StoredParticipant[]> {
+    const participants = await this.prisma.leagueParticipant.findMany({
+      where: { leagueId },
+      // `select` explícito dos dois lados do join: nem coluna nova de
+      // participação nem coluna nova de conta passa a sair sem alguém decidir.
+      select: { userId: true, user: { select: { name: true } } },
+      orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
+    });
+
+    // Achata o join: nenhuma forma aninhada do Prisma atravessa para o service.
+    return participants.map((participant) => ({
+      userId: participant.userId,
+      name: participant.user.name,
+    }));
+  }
+
+  /**
+   * Uma liga pelo id, ou `null`. **Não filtra por participação** — e, diferente
+   * de `findParticipants`, não é ela quem autoriza nada, então só pode ser
+   * chamada depois de a autorização passar no service.
    *
    * Existe para o convite: é preciso saber o período da liga para decidir se
    * ela já encerrou.

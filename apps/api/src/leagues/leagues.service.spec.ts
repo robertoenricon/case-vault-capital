@@ -14,6 +14,7 @@ import type {
   NewLeague,
   StoredInvite,
   StoredLeague,
+  StoredParticipant,
 } from './leagues.repository.js';
 import { LeaguesService } from './leagues.service.js';
 
@@ -50,7 +51,15 @@ function repositoryFake() {
   const saved: NewLeague[] = [];
   const askedFor: string[] = [];
   const rows: StoredLeague[] = [];
+
+  /**
+   * Quem participa de cada liga, **na ordem de entrada** — a ordem do array é
+   * o que reproduz o `orderBy` por `joined_at` do repositório real.
+   */
   const participantsByLeague = new Map<string, string[]>();
+
+  /** Nome de cada conta, como o join com `users` devolve no real. */
+  const namesByUser = new Map<string, string>();
 
   /** Convites pendentes, como as linhas da tabela. */
   const invites: { id: string; leagueId: string; invitedUserId: string }[] = [];
@@ -108,6 +117,31 @@ function repositoryFake() {
 
     findParticipantUserIds(leagueId: string): Promise<string[]> {
       return Promise.resolve(participantsByLeague.get(leagueId) ?? []);
+    },
+
+    /** Nome de uma conta, para o join de participantes devolver algo. */
+    seedUserName(userId: string, name: string): void {
+      namesByUser.set(userId, name);
+    },
+
+    /**
+     * Participantes com nome, na ordem de entrada. Liga nunca semeada responde
+     * vazio, como o banco — é o que faz o service tratar liga inexistente como
+     * liga de que a pessoa não participa.
+     *
+     * O nome ausente sai marcado em vez de `undefined`: o real nunca devolve
+     * participante sem nome (a chave estrangeira garante a conta), então teste
+     * que esqueceu de semear o nome precisa falhar de forma legível.
+     */
+    findParticipants(leagueId: string): Promise<StoredParticipant[]> {
+      const userIds = participantsByLeague.get(leagueId) ?? [];
+
+      return Promise.resolve(
+        userIds.map((userId) => ({
+          userId,
+          name: namesByUser.get(userId) ?? `sem-nome-semeado:${userId}`,
+        })),
+      );
     },
 
     findById(leagueId: string): Promise<StoredLeague | null> {
@@ -433,6 +467,76 @@ describe('LeaguesService.listForParticipant', () => {
 
     // Vazio é resposta normal, não erro: a tela tem estado próprio para isso.
     await expect(service.listForParticipant(CRIADOR)).resolves.toEqual([]);
+  });
+});
+
+describe('LeaguesService.listParticipants', () => {
+  const LIGA = 'id-da-liga';
+  const BRUNO = 'id-do-bruno';
+  const DE_FORA = 'id-de-quem-nao-participa';
+
+  /** Liga com dois participantes, nesta ordem de entrada. */
+  function ligaComDois() {
+    const repository = repositoryFake();
+    repository.seedParticipants(LIGA, [CRIADOR, BRUNO]);
+    repository.seedUserName(CRIADOR, 'Ana Prado');
+    repository.seedUserName(BRUNO, 'Bruno Lima');
+
+    return repository;
+  }
+
+  it('devolve os participantes na ordem de entrada', async () => {
+    const repository = ligaComDois();
+    const service = await buildService(repository);
+
+    const participants = await service.listParticipants(LIGA, CRIADOR);
+
+    // Quem criou entrou junto com a liga, então vem primeiro. A ordem é do
+    // banco (`joined_at`); o que se testa aqui é que o service não a refaz.
+    expect(participants.map((p) => p.name)).toEqual(['Ana Prado', 'Bruno Lima']);
+  });
+
+  it('inclui quem está pedindo a lista', async () => {
+    const repository = ligaComDois();
+    const service = await buildService(repository);
+
+    const participants = await service.listParticipants(LIGA, CRIADOR);
+
+    // Diferente da lista de convite, onde quem pede sai: aqui a pessoa é um
+    // dos participantes, e uma lista de participantes sem ela estaria errada.
+    expect(participants.map((p) => p.id)).toContain(CRIADOR);
+  });
+
+  it('recusa quem não participa da liga', async () => {
+    const repository = ligaComDois();
+    const service = await buildService(repository);
+
+    await expect(
+      service.listParticipants(LIGA, DE_FORA),
+    ).rejects.toThrow(NotALeagueParticipantError);
+  });
+
+  it('trata liga inexistente como liga de que a pessoa não participa', async () => {
+    const repository = repositoryFake();
+    const service = await buildService(repository);
+
+    // Mesmo erro dos dois casos, como nas outras rotas: assim não se descobre
+    // a existência de ligas alheias testando ids.
+    await expect(
+      service.listParticipants('id-de-liga-que-nao-existe', CRIADOR),
+    ).rejects.toThrow(NotALeagueParticipantError);
+  });
+
+  it('não consulta a base de usuários', async () => {
+    const repository = ligaComDois();
+    const users = usersServiceFake([]);
+    const service = await buildService(repository, users);
+
+    await service.listParticipants(LIGA, CRIADOR);
+
+    // O nome do participante vem do join da própria participação, não da lista
+    // de contas da plataforma: esta rota não tem motivo para tocar nela.
+    expect(users.listedTimes).toBe(0);
   });
 });
 

@@ -4,6 +4,7 @@ import type { Session } from '../auth/session'
 import { CreateLeagueModal } from './CreateLeagueModal'
 import { InviteFriendsModal } from './InviteFriendsModal'
 import { LeagueCard } from './LeagueCard'
+import { ParticipantsModal } from './ParticipantsModal'
 import { PendingInvites } from './PendingInvites'
 import type { League } from './leaguesApi'
 import { useLeagues } from './useLeagues'
@@ -41,6 +42,11 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
   // o nome dela, e buscá-lo de novo na lista seria procurar o que já se tem em
   // mãos no clique.
   const [invitingTo, setInvitingTo] = useState<League>()
+
+  // Liga cuja lista de participantes está aberta. Dois estados separados, e não
+  // um só com o tipo do modal: cada modal é aberto por um clique diferente, e
+  // um estado único faria o fechamento de um precisar saber do outro.
+  const [viewingParticipantsOf, setViewingParticipantsOf] = useState<League>()
 
   const { leagues, loading, error, refresh } = useLeagues(session.accessToken)
 
@@ -131,6 +137,7 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
             key={league.id}
             league={league}
             onInvite={() => setInvitingTo(league)}
+            onShowParticipants={() => setViewingParticipantsOf(league)}
           />
         ))}
       </ul>
@@ -223,6 +230,17 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
           league={invitingTo}
           accessToken={session.accessToken}
           onClose={() => setInvitingTo(undefined)}
+        />
+      )}
+
+      {/* Mesmo padrão dos outros dois, e aqui montar e desmontar também é o que
+          mantém a lista atual: participante novo aparece sem recarregar a
+          página, porque cada abertura busca de novo. */}
+      {viewingParticipantsOf && (
+        <ParticipantsModal
+          league={viewingParticipantsOf}
+          accessToken={session.accessToken}
+          onClose={() => setViewingParticipantsOf(undefined)}
         />
       )}
     </div>
