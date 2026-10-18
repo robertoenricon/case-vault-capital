@@ -130,3 +130,40 @@
   color: var(--cream-soft);
   max-width: 420px;
 }
+
+/*
+ * Liga criada nesta visita. Card de conteúdo de verdade — borda cheia, e não
+ * tracejada como o estado vazio.
+ */
+.dashboard__created {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px;
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+
+  @media (max-width: 480px) {
+    padding: 20px 18px;
+  }
+}
+
+.dashboard__league-name {
+  font-size: 22px;
+  letter-spacing: -0.2px;
+  margin: 6px 0 0;
+}
+
+.dashboard__league-period {
+  font-size: 15px;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Aviso de que falta produto aqui: presente, sem competir com o resto. */
+.dashboard__league-note {
+  font-size: 13px;
+  color: var(--cream-soft);
+  max-width: 520px;
+}

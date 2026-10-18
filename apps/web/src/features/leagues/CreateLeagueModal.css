@@ -1,0 +1,76 @@
+/*
+ * Modal de criação de liga. Campos e botões vêm de authForm.css; aqui só a
+ * caixa, o fundo e o arranjo dos dois campos de data.
+ */
+
+/*
+ * O `<dialog>` nativo já vem centralizado pelo navegador, então não há overlay
+ * nem posicionamento manual: o que sobra é a aparência da caixa. Sem `display`
+ * declarado de propósito — quem controla isso é o `showModal()`, e um
+ * `display: flex` aqui deixaria o modal visível mesmo fechado.
+ */
+.league-modal {
+  width: 100%;
+  max-width: 440px;
+  padding: 0;
+  color: var(--cream);
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dark);
+}
+
+/* Escurece e esfuma o dashboard atrás, mantendo o contexto visível. */
+.league-modal::backdrop {
+  background: hsl(28 12% 3% / 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.league-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+
+  @media (max-width: 480px) {
+    padding: 22px 18px;
+  }
+}
+
+.league-modal__title {
+  font-size: 24px;
+  letter-spacing: -0.3px;
+  margin: 0 0 6px;
+}
+
+.league-modal__subtitle {
+  font-size: 14px;
+  color: var(--cream-soft);
+}
+
+/* Início e fim lado a lado: são uma informação só, o período. */
+.league-modal__period {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+
+  /* Em tela estreita o campo de data fica apertado demais para o seletor
+     nativo; empilhar é melhor que encolher. */
+  @media (max-width: 420px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.league-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+
+  /* No celular os dois botões dividem a largura, com a ação principal à direita. */
+  @media (max-width: 420px) {
+    & > .button {
+      flex: 1;
+    }
+  }
+}
