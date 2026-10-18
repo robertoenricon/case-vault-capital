@@ -19,6 +19,7 @@ Cadastro de conta:
 - Módulo por domínio (`users`), com Controller (HTTP), Service (regra de negocio) e
   Repositório (banco) separados.
 - JWT Bearer.
+- Leagues (data), league_participants (quem participa)
 
 **Principais decisões técnicas:**
 Infra:
@@ -45,5 +46,6 @@ Login:
 - Rate limit no login. A rota aceita volumes de tentativas erradas.
 - Refresh token e revogação de sessão. "Sair" apaga o token do navegador; no
   servidor ele continua válido até expirar.
+- Poder excluir pessoas da liga.
 
 ## 5. Próximos passos:

@@ -35,5 +35,64 @@ model User {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  // Lado inverso da participação. Não vira coluna: existe só para o Prisma
+  // saber navegar da conta para as ligas dela.
+  leagues LeagueParticipant[]
+
   @@map("users")
+}
+
+/// Competição entre amigos, com janela de tempo própria. A liga é a entidade
+/// compartilhada: quem participa dela mora em `LeagueParticipant`, nunca aqui —
+/// uma coluna de participante na própria liga quebraria o compartilhamento
+/// (cada linha viraria uma pessoa solta, sem nada que as agrupasse).
+model League {
+  // Mesmo padrão de chave do `User`: UUID v7 gerado pela aplicação.
+  id String @id @default(uuid(7)) @db.Uuid
+
+  // Janela de disputa. `Timestamptz` e não `Date`: a liga começa e termina em
+  // um instante, e o ranking precisa saber se a ordem caiu dentro dela — com
+  // participantes em fusos diferentes, data sem hora é ambígua.
+  startsAt DateTime @map("starts_at") @db.Timestamptz(6)
+  endsAt   DateTime @map("ends_at") @db.Timestamptz(6)
+
+  participants LeagueParticipant[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("leagues")
+}
+
+/// Vínculo entre uma conta e uma liga — é esta tabela que realiza o N:N
+/// ("um usuário em várias ligas, uma liga com vários usuários").
+///
+/// O nome do participante não é copiado para cá: ele vem de `users.name` por
+/// join. Copiar criaria duas verdades para o mesmo dado, e a cópia envelheceria
+/// no dia em que a pessoa trocasse o nome.
+model LeagueParticipant {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  leagueId String @map("league_id") @db.Uuid
+  // Apagar a liga apaga as participações dela: participação sem liga é lixo,
+  // não tem leitura possível.
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id") @db.Uuid
+  // Já a conta é restrita: apagar quem tem histórico de disputa deixaria o
+  // ranking com um buraco. Se um dia existir exclusão de conta, ela precisa
+  // decidir explicitamente o que fazer com as ligas.
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  // Entrar duas vezes na mesma liga duplicaria a pessoa no ranking. Quem impede
+  // é o índice único do banco, não uma verificação antes do INSERT: dois
+  // pedidos simultâneos passariam pela verificação e os dois gravariam.
+  @@unique([leagueId, userId])
+
+  // O único cobre `league_id` (é o prefixo dele), mas não `user_id` sozinho —
+  // e "as ligas deste usuário" filtra exatamente por `user_id`.
+  @@index([userId])
+  @@map("league_participants")
 }
