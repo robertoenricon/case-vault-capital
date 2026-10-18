@@ -21,8 +21,19 @@
  * de propósito: o front já trata o 400 do ValidationPipe, e dois status para
  * "seu pedido não serve" só obrigariam a tela a distinguir o que, para quem
  * está nela, é a mesma coisa.
+ *
+ * `unavailable` = o pedido está certo e quem pediu pode pedir, mas um serviço
+ * de fora do qual dependemos não respondeu — hoje, a API de cotações. É a
+ * única natureza em que **nada do lado do cliente resolve**: não adianta
+ * corrigir o payload nem entrar de novo, só tentar depois. Separada por isso,
+ * e porque vira 5xx: enfiar isso num 400 diria ao cliente que o erro foi dele.
  */
-export type DomainErrorKind = 'conflict' | 'unauthorized' | 'forbidden' | 'invalid';
+export type DomainErrorKind =
+  | 'conflict'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'invalid'
+  | 'unavailable';
 
 export abstract class DomainError extends Error {
   abstract readonly kind: DomainErrorKind;
