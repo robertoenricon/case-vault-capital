@@ -2,11 +2,19 @@ import { Test } from '@nestjs/testing';
 import type { PublicUser } from '../users/users.repository.js';
 import { UsersService } from '../users/users.service.js';
 import {
+  LeagueAlreadyFinishedError,
+  LeagueInviteAlreadySentError,
+  LeagueInviteNotFoundError,
   LeagueStartsInPastError,
   NotALeagueParticipantError,
+  UserAlreadyInLeagueError,
 } from './leagues.errors.js';
 import { LeaguesRepository } from './leagues.repository.js';
-import type { NewLeague, StoredLeague } from './leagues.repository.js';
+import type {
+  NewLeague,
+  StoredInvite,
+  StoredLeague,
+} from './leagues.repository.js';
 import { LeaguesService } from './leagues.service.js';
 
 /**
@@ -44,9 +52,30 @@ function repositoryFake() {
   const rows: StoredLeague[] = [];
   const participantsByLeague = new Map<string, string[]>();
 
+  /** Convites pendentes, como as linhas da tabela. */
+  const invites: { id: string; leagueId: string; invitedUserId: string }[] = [];
+
+  /** Monta o que o repositório real devolve: o convite já com o join da liga. */
+  function toStoredInvite(invite: {
+    id: string;
+    leagueId: string;
+  }): StoredInvite | null {
+    const league = rows.find((row) => row.id === invite.leagueId);
+    if (!league) return null;
+
+    return {
+      id: invite.id,
+      leagueId: league.id,
+      leagueName: league.name,
+      startsAt: league.startsAt,
+      endsAt: league.endsAt,
+    };
+  }
+
   return {
     saved,
     askedFor,
+    invites,
 
     seed(league: StoredLeague): void {
       rows.push(league);
@@ -79,6 +108,111 @@ function repositoryFake() {
 
     findParticipantUserIds(leagueId: string): Promise<string[]> {
       return Promise.resolve(participantsByLeague.get(leagueId) ?? []);
+    },
+
+    findById(leagueId: string): Promise<StoredLeague | null> {
+      return Promise.resolve(rows.find((row) => row.id === leagueId) ?? null);
+    },
+
+    /** Convite já pendente no banco, como se outra pessoa o tivesse enviado. */
+    seedInvite(id: string, leagueId: string, invitedUserId: string): void {
+      invites.push({ id, leagueId, invitedUserId });
+    },
+
+    findInvitedUserIds(leagueId: string): Promise<string[]> {
+      return Promise.resolve(
+        invites
+          .filter((invite) => invite.leagueId === leagueId)
+          .map((invite) => invite.invitedUserId),
+      );
+    },
+
+    /**
+     * Honra o contrato do real **inclusive no erro**: convite repetido lança
+     * `LeagueInviteAlreadySentError`, como o índice único do banco provoca. Um
+     * fake que aceitasse duplicata faria o teste passar e a produção responder
+     * 409 sem ninguém esperar.
+     */
+    createInvite(leagueId: string, invitedUserId: string): Promise<void> {
+      const duplicado = invites.some(
+        (invite) =>
+          invite.leagueId === leagueId &&
+          invite.invitedUserId === invitedUserId,
+      );
+
+      if (duplicado) {
+        return Promise.reject(
+          new LeagueInviteAlreadySentError(leagueId, invitedUserId),
+        );
+      }
+
+      invites.push({
+        id: `convite-de-${invitedUserId}`,
+        leagueId,
+        invitedUserId,
+      });
+
+      return Promise.resolve();
+    },
+
+    findPendingInvitesForUser(userId: string): Promise<StoredInvite[]> {
+      const found = invites
+        .filter((invite) => invite.invitedUserId === userId)
+        .map(toStoredInvite)
+        .filter((invite): invite is StoredInvite => invite !== null);
+
+      return Promise.resolve(found);
+    },
+
+    findInviteForUser(
+      inviteId: string,
+      userId: string,
+    ): Promise<StoredInvite | null> {
+      const found = invites.find(
+        (invite) => invite.id === inviteId && invite.invitedUserId === userId,
+      );
+
+      return Promise.resolve(found ? toStoredInvite(found) : null);
+    },
+
+    /**
+     * Reproduz a escrita condicional do real: só consome o convite se ele ainda
+     * é desta pessoa **e** a liga não encerrou. Devolver sempre `true` aqui
+     * esconderia a corrida que o service traduz em erro.
+     */
+    consumeInvite(
+      invite: { id: string; leagueId: string },
+      userId: string,
+      notFinishedAt: Date,
+    ): Promise<boolean> {
+      const index = invites.findIndex(
+        (row) => row.id === invite.id && row.invitedUserId === userId,
+      );
+      if (index === -1) return Promise.resolve(false);
+
+      const league = rows.find((row) => row.id === invite.leagueId);
+      if (!league || league.endsAt.getTime() < notFinishedAt.getTime()) {
+        return Promise.resolve(false);
+      }
+
+      invites.splice(index, 1);
+      participantsByLeague.set(invite.leagueId, [
+        ...(participantsByLeague.get(invite.leagueId) ?? []),
+        userId,
+      ]);
+
+      return Promise.resolve(true);
+    },
+
+    deleteInviteForUser(inviteId: string, userId: string): Promise<boolean> {
+      const index = invites.findIndex(
+        (invite) => invite.id === inviteId && invite.invitedUserId === userId,
+      );
+      if (index === -1) return Promise.resolve(false);
+
+      invites.splice(index, 1);
+
+      return Promise.resolve(true);
     },
   };
 }
@@ -384,5 +518,271 @@ describe('LeaguesService.listCandidates', () => {
     await expect(
       service.listCandidates('liga-que-nao-existe', CRIADOR),
     ).rejects.toThrow(NotALeagueParticipantError);
+  });
+
+  it('marca quem já tem convite pendente', async () => {
+    const repository = repositoryFake();
+    repository.seedParticipants(LIGA, [CRIADOR]);
+    repository.seedInvite('convite-1', LIGA, 'id-do-bruno');
+    const service = await buildService(repository, usersServiceFake(CADASTRADOS));
+
+    const candidates = await service.listCandidates(LIGA, CRIADOR);
+
+    // Sem esta marca a tela ofereceria "Convidar" de novo e o clique voltaria
+    // com 409 do índice único.
+    const pendentes = new Map(
+      candidates.map((c) => [c.name, c.invitePending]),
+    );
+    expect(pendentes.get('Bruno Lima')).toBe(true);
+    expect(pendentes.get('Carla Dias')).toBe(false);
+  });
+});
+
+describe('LeaguesService.invite', () => {
+  const LIGA = 'id-da-liga';
+  const CONVIDADO = 'id-do-convidado';
+  const DE_FORA = 'id-de-quem-esta-fora';
+
+  /** Liga em andamento, com o criador dentro — o cenário comum do convite. */
+  function comLigaEmAndamento() {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', -1, 5));
+    repository.seedParticipants(LIGA, [CRIADOR]);
+
+    return repository;
+  }
+
+  it('grava o convite quando quem convida participa da liga', async () => {
+    const repository = comLigaEmAndamento();
+    const service = await buildService(repository);
+
+    await service.invite(LIGA, CONVIDADO, CRIADOR);
+
+    expect(repository.invites).toEqual([
+      { id: `convite-de-${CONVIDADO}`, leagueId: LIGA, invitedUserId: CONVIDADO },
+    ]);
+  });
+
+  it('recusa quem não participa da liga, sem gravar nada', async () => {
+    const repository = comLigaEmAndamento();
+    const service = await buildService(repository);
+
+    // A liga não tem dono: qualquer participante convida. Mas quem está fora
+    // não convida ninguém — é a mesma autorização da lista de candidatos.
+    await expect(service.invite(LIGA, CONVIDADO, DE_FORA)).rejects.toThrow(
+      NotALeagueParticipantError,
+    );
+    expect(repository.invites).toHaveLength(0);
+  });
+
+  it('recusa convidar quem já participa', async () => {
+    const repository = comLigaEmAndamento();
+    repository.seedParticipants(LIGA, [CRIADOR, CONVIDADO]);
+    const service = await buildService(repository);
+
+    await expect(service.invite(LIGA, CONVIDADO, CRIADOR)).rejects.toThrow(
+      UserAlreadyInLeagueError,
+    );
+  });
+
+  it('recusa convidar a si mesmo', async () => {
+    const repository = comLigaEmAndamento();
+    const service = await buildService(repository);
+
+    // Cai no mesmo caso acima: quem convida participa, então convidar-se é
+    // convidar alguém que já está dentro. Não precisa de regra própria.
+    await expect(service.invite(LIGA, CRIADOR, CRIADOR)).rejects.toThrow(
+      UserAlreadyInLeagueError,
+    );
+  });
+
+  it('recusa convite para liga encerrada', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Já acabou', -5, -4));
+    repository.seedParticipants(LIGA, [CRIADOR]);
+    const service = await buildService(repository);
+
+    // Convite que já nasce impossível de aceitar não deve ser criado.
+    await expect(service.invite(LIGA, CONVIDADO, CRIADOR)).rejects.toThrow(
+      LeagueAlreadyFinishedError,
+    );
+    expect(repository.invites).toHaveLength(0);
+  });
+
+  it('propaga o conflito de convite duplicado', async () => {
+    const repository = comLigaEmAndamento();
+    const service = await buildService(repository);
+
+    await service.invite(LIGA, CONVIDADO, CRIADOR);
+
+    // Quem detecta é o índice único, não uma verificação prévia no service: o
+    // erro sobe do repositório e o filtro HTTP o traduz em 409.
+    await expect(service.invite(LIGA, CONVIDADO, CRIADOR)).rejects.toThrow(
+      LeagueInviteAlreadySentError,
+    );
+    expect(repository.invites).toHaveLength(1);
+  });
+});
+
+describe('LeaguesService.listPendingInvites', () => {
+  const LIGA = 'id-da-liga';
+  const CONVIDADO = 'id-do-convidado';
+
+  it('devolve o convite com o nome da liga e a situação dela', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', 2, 9));
+    repository.seedInvite('convite-1', LIGA, CONVIDADO);
+    const service = await buildService(repository);
+
+    const invites = await service.listPendingInvites(CONVIDADO);
+
+    expect(invites).toHaveLength(1);
+    expect(invites[0]?.leagueName).toBe('Liga dos Amigos');
+    // A situação vem pronta: a tela não compara datas para descobri-la.
+    expect(invites[0]?.status).toBe('scheduled');
+  });
+
+  it('não devolve convite de outra pessoa', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', 2, 9));
+    repository.seedInvite('convite-1', LIGA, 'id-de-outra-pessoa');
+    const service = await buildService(repository);
+
+    await expect(service.listPendingInvites(CONVIDADO)).resolves.toEqual([]);
+  });
+
+  it('omite convite de liga já encerrada', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco('liga-encerrada', 'Já acabou', -5, -4));
+    repository.seed(ligaNoBanco(LIGA, 'Ainda vale', -1, 5));
+    repository.seedInvite('convite-velho', 'liga-encerrada', CONVIDADO);
+    repository.seedInvite('convite-1', LIGA, CONVIDADO);
+    const service = await buildService(repository);
+
+    const invites = await service.listPendingInvites(CONVIDADO);
+
+    // O convite não pode mais ser aceito, então mostrá-lo só ofereceria um
+    // botão que falha.
+    expect(invites.map((invite) => invite.leagueName)).toEqual(['Ainda vale']);
+  });
+});
+
+describe('LeaguesService.acceptInvite', () => {
+  const LIGA = 'id-da-liga';
+  const CONVIDADO = 'id-do-convidado';
+
+  it('entra na liga e consome o convite', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', -1, 5));
+    repository.seedParticipants(LIGA, [CRIADOR]);
+    repository.seedInvite('convite-1', LIGA, CONVIDADO);
+    const service = await buildService(repository);
+
+    const league = await service.acceptInvite('convite-1', CONVIDADO);
+
+    // As duas coisas são a mesma operação: ou a pessoa está na liga e o convite
+    // sumiu, ou nada aconteceu.
+    expect(league.name).toBe('Liga dos Amigos');
+    expect(league.status).toBe('running');
+    expect(repository.invites).toHaveLength(0);
+    await expect(
+      repository.findParticipantUserIds(LIGA),
+    ).resolves.toContain(CONVIDADO);
+  });
+
+  it('aceita convite de liga que já começou', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Valendo agora', -2, 5));
+    repository.seedInvite('convite-1', LIGA, CONVIDADO);
+    const service = await buildService(repository);
+
+    // Decisão de produto: entrar no meio é desvantagem de quem entra, e
+    // bloquear seria decidir pela pessoa.
+    await expect(
+      service.acceptInvite('convite-1', CONVIDADO),
+    ).resolves.toMatchObject({ status: 'running' });
+  });
+
+  it('recusa convite de liga encerrada, sem colocar a pessoa dentro', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Já acabou', -5, -4));
+    repository.seedInvite('convite-1', LIGA, CONVIDADO);
+    const service = await buildService(repository);
+
+    await expect(
+      service.acceptInvite('convite-1', CONVIDADO),
+    ).rejects.toThrow(LeagueAlreadyFinishedError);
+
+    // O convite continua lá: nada foi consumido.
+    expect(repository.invites).toHaveLength(1);
+    await expect(
+      repository.findParticipantUserIds(LIGA),
+    ).resolves.not.toContain(CONVIDADO);
+  });
+
+  it('recusa convite de outra pessoa', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', -1, 5));
+    repository.seedInvite('convite-1', LIGA, 'id-de-outra-pessoa');
+    const service = await buildService(repository);
+
+    // Aceitar convite alheio entraria na liga em nome de outro. O id do
+    // convidado faz parte da condição, não é só filtro de leitura.
+    await expect(
+      service.acceptInvite('convite-1', CONVIDADO),
+    ).rejects.toThrow(LeagueInviteNotFoundError);
+    expect(repository.invites).toHaveLength(1);
+  });
+
+  it('recusa convite que não existe', async () => {
+    const repository = repositoryFake();
+    const service = await buildService(repository);
+
+    await expect(
+      service.acceptInvite('convite-que-nao-existe', CONVIDADO),
+    ).rejects.toThrow(LeagueInviteNotFoundError);
+  });
+});
+
+describe('LeaguesService.rejectInvite', () => {
+  const LIGA = 'id-da-liga';
+  const CONVIDADO = 'id-do-convidado';
+
+  it('apaga o convite e não guarda nada', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', -1, 5));
+    repository.seedInvite('convite-1', LIGA, CONVIDADO);
+    const service = await buildService(repository);
+
+    await service.rejectInvite('convite-1', CONVIDADO);
+
+    // Sem histórico, por decisão registrada: a pessoa pode ser convidada de
+    // novo depois sem nenhuma regra extra para decidir.
+    expect(repository.invites).toHaveLength(0);
+  });
+
+  it('recusa apagar convite de outra pessoa', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', -1, 5));
+    repository.seedInvite('convite-1', LIGA, 'id-de-outra-pessoa');
+    const service = await buildService(repository);
+
+    await expect(
+      service.rejectInvite('convite-1', CONVIDADO),
+    ).rejects.toThrow(LeagueInviteNotFoundError);
+    expect(repository.invites).toHaveLength(1);
+  });
+
+  it('permite recusar convite de liga encerrada', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Já acabou', -5, -4));
+    repository.seedInvite('convite-1', LIGA, CONVIDADO);
+    const service = await buildService(repository);
+
+    // Recusar é sempre possível, inclusive para limpar convite que não
+    // interessa mais — diferente de aceitar.
+    await service.rejectInvite('convite-1', CONVIDADO);
+
+    expect(repository.invites).toHaveLength(0);
   });
 });

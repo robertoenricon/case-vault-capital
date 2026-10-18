@@ -1,4 +1,5 @@
-import type { League, LeagueStatus } from './leaguesApi'
+import { STATUS_LABEL, formatPeriod } from './leagueDisplay'
+import type { League } from './leaguesApi'
 import '../auth/authForm.css'
 import './LeagueCard.css'
 
@@ -6,19 +7,6 @@ type LeagueCardProps = {
   league: League
   /** Clique em "Convidar amigos". Quem decide o que acontece é o dashboard. */
   onInvite: () => void
-}
-
-/**
- * Palavra que cada situação recebe na tela.
- *
- * A decisão de **qual é** a situação é do backend; aqui se decide só como ela
- * se chama em português. Trocar "Em andamento" por "Valendo agora" não toca na
- * API.
- */
-const STATUS_LABEL: Record<LeagueStatus, string> = {
-  running: 'Em andamento',
-  scheduled: 'Agendada',
-  finished: 'Encerrada',
 }
 
 /**
@@ -68,15 +56,4 @@ export function LeagueCard({ league, onInvite }: LeagueCardProps) {
       </div>
     </li>
   )
-}
-
-/**
- * Período no formato de quem está lendo. A API manda ISO em UTC; o front
- * formata, mas não recalcula nada — o dia exibido é o instante que o backend
- * gravou, lido no fuso do navegador.
- */
-function formatPeriod(startsAt: string, endsAt: string): string {
-  const format = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
-
-  return `${format.format(new Date(startsAt))} até ${format.format(new Date(endsAt))}`
 }

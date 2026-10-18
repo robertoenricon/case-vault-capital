@@ -39,6 +39,10 @@ model User {
   // saber navegar da conta para as ligas dela.
   leagues LeagueParticipant[]
 
+  // Convites recebidos. Lado inverso também: quem é convidado para quê mora
+  // em `LeagueInvite`.
+  invites LeagueInvite[]
+
   @@map("users")
 }
 
@@ -68,6 +72,7 @@ model League {
   endsAt   DateTime @map("ends_at") @db.Timestamptz(6)
 
   participants LeagueParticipant[]
+  invites      LeagueInvite[]
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -106,4 +111,45 @@ model LeagueParticipant {
   // e "as ligas deste usuário" filtra exatamente por `user_id`.
   @@index([userId])
   @@map("league_participants")
+}
+
+/// Convite pendente para entrar numa liga.
+///
+/// É tabela separada de `league_participants` de propósito, e não uma coluna
+/// de situação lá: assim "participante" continua significando "está dentro da
+/// liga", verdade única. Nenhuma consulta de participação — a autorização por
+/// liga, a lista de candidatos e, depois, ordens e ranking — precisa aprender
+/// a filtrar convidado-que-ainda-não-aceitou. Esquecer esse filtro em uma
+/// consulta só seria vazamento silencioso, não erro de compilação.
+///
+/// A linha existe **enquanto o convite está pendente**: aceitar cria a
+/// participação e apaga o convite (na mesma transação), recusar apaga. Não há
+/// histórico de aceite nem de recusa, por decisão registrada — guardá-lo
+/// exigiria coluna de situação e uma regra para "convite recusado pode ser
+/// reenviado?", que o MVP não precisa responder.
+model LeagueInvite {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  leagueId String @map("league_id") @db.Uuid
+  // Apagar a liga apaga os convites dela: convite para liga que não existe não
+  // tem leitura possível.
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  invitedUserId String @map("invited_user_id") @db.Uuid
+  // Mesma restrição da participação: apagar conta com convite pendente exigiria
+  // decidir o que fazer com ele, e hoje não há exclusão de conta.
+  invitedUser   User   @relation(fields: [invitedUserId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Convidar duas vezes a mesma pessoa para a mesma liga empilharia convites
+  // idênticos na tela dela. Quem impede é o índice único do banco, não uma
+  // verificação antes do INSERT: dois cliques simultâneos passariam pela
+  // verificação e os dois gravariam.
+  @@unique([leagueId, invitedUserId])
+
+  // "Meus convites" filtra exatamente por `invited_user_id`, que não é prefixo
+  // do único acima.
+  @@index([invitedUserId])
+  @@map("league_invites")
 }

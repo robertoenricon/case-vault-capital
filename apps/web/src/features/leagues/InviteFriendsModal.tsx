@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { League } from './leaguesApi'
+import { useInviteToLeague } from './useInviteToLeague'
 import { useLeagueCandidates } from './useLeagueCandidates'
 import '../auth/authForm.css'
 import './InviteFriendsModal.css'
@@ -16,10 +17,10 @@ type InviteFriendsModalProps = {
  * Modal de convite: as pessoas cadastradas na plataforma, com a ação de
  * convidar ao lado de cada uma.
  *
- * **O botão "Convidar" ainda não faz nada** — esta etapa é a tela, e a ação
- * ficou para a próxima. Ele não tem `onClick` em vez de ter um `() => {}`: um
- * handler vazio pareceria código pronto, e o convite envolve decisões que ainda
- * não foram tomadas (o convite entra direto ou precisa de aceite?).
+ * O convite não coloca ninguém na liga — ele espera resposta. Quem foi
+ * convidado vê o convite no próprio painel e decide (ver PendingInvites.tsx).
+ * Por isso a marca ao lado do nome tem três estados, não dois: já participa,
+ * convite pendente, ou disponível para convidar.
  *
  * Mesmo `<dialog>` nativo do modal de criar liga: foco preso, Esc e fundo
  * inerte vêm do navegador.
@@ -35,6 +36,14 @@ export function InviteFriendsModal({
     league.id,
     accessToken,
   )
+
+  // A lista é relida depois de cada convite: a marca "Convite enviado" vem da
+  // API, e não de um estado local que poderia discordar do backend.
+  const {
+    invite,
+    invitingUserId,
+    error: inviteError,
+  } = useInviteToLeague(league.id, accessToken, refresh)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -93,11 +102,23 @@ export function InviteFriendsModal({
           <li className="invite__person" key={person.id}>
             <span className="invite__name">{person.name}</span>
 
+            {/* A ordem das perguntas importa: quem já participa não tem
+                convite pendente, então "já participa" vem primeiro. */}
             {person.alreadyParticipant ? (
               <span className="invite__already">Já participa</span>
+            ) : person.invitePending ? (
+              <span className="invite__already">Convite enviado</span>
             ) : (
-              <button type="button" className="button button--primary invite__action">
-                Convidar
+              <button
+                type="button"
+                className="button button--primary invite__action"
+                onClick={() => invite(person.id)}
+                // Desabilita só durante o envio: a trava contra clique duplo é
+                // o ref dentro do hook, isto é o aviso visual.
+                disabled={invitingUserId !== undefined}
+                aria-label={`Convidar ${person.name} para ${league.name}`}
+              >
+                {invitingUserId === person.id ? 'Enviando…' : 'Convidar'}
               </button>
             )}
           </li>
@@ -128,6 +149,14 @@ export function InviteFriendsModal({
             Para a liga <strong>{league.name}</strong>.
           </p>
         </header>
+
+        {/* Erro do envio, separado do erro da busca: a lista continua na tela
+            e utilizável, só aquele convite falhou. */}
+        {inviteError && (
+          <p className="form__alert form__alert--error" role="alert">
+            {inviteError}
+          </p>
+        )}
 
         {peopleSection()}
 

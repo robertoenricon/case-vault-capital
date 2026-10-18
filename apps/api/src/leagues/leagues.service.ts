@@ -3,9 +3,14 @@ import { UsersService } from '../users/users.service.js';
 import { buildLeaguePeriod } from './league-period.js';
 import { leagueStatusAt } from './league-status.js';
 import type { LeagueStatus } from './league-status.js';
-import { NotALeagueParticipantError } from './leagues.errors.js';
+import {
+  LeagueAlreadyFinishedError,
+  LeagueInviteNotFoundError,
+  NotALeagueParticipantError,
+  UserAlreadyInLeagueError,
+} from './leagues.errors.js';
 import { LeaguesRepository } from './leagues.repository.js';
-import type { StoredLeague } from './leagues.repository.js';
+import type { StoredInvite, StoredLeague } from './leagues.repository.js';
 
 /** Entrada da regra, já validada na borda. O criador vem do token, não do corpo. */
 export type CreateLeagueInput = {
@@ -50,6 +55,22 @@ export type LeagueCandidate = {
   name: string;
   /** `true` quando a pessoa já participa: a tela mostra isso no lugar do convite. */
   alreadyParticipant: boolean;
+  /**
+   * `true` quando já existe convite pendente para ela.
+   *
+   * Sem este campo o botão mentiria: a tela ofereceria "Convidar" e o clique
+   * voltaria com 409 do índice único.
+   */
+  invitePending: boolean;
+};
+
+/**
+ * Convite pendente como a tela de quem foi convidado o mostra: o nome da liga,
+ * o período e a situação dela — é isso que a pessoa precisa para decidir se
+ * entra.
+ */
+export type PendingInvite = StoredInvite & {
+  status: LeagueStatus;
 };
 
 @Injectable()
@@ -150,6 +171,7 @@ export class LeaguesService {
     }
 
     const users = await this.users.listPublic();
+    const invited = new Set(await this.leagues.findInvitedUserIds(leagueId));
 
     return users
       .filter((user) => user.id !== requesterId)
@@ -157,7 +179,137 @@ export class LeaguesService {
         id: user.id,
         name: user.name,
         alreadyParticipant: participants.has(user.id),
+        invitePending: invited.has(user.id),
       }));
+  }
+
+  /**
+   * Convida alguém para a liga.
+   *
+   * Três regras ficam aqui:
+   *
+   * 1. **Autorização.** Só participante convida — a liga não tem dono nem
+   *    papéis, então qualquer um de dentro pode chamar mais gente. Quem está
+   *    fora recebe o mesmo erro de liga inexistente.
+   * 2. **Quem já está dentro não é convidado.** Isso também cobre convidar a si
+   *    mesmo: quem chama participa, então cai neste caso.
+   * 3. **Liga encerrada não recebe convite**, porque o aceite seria recusado
+   *    depois — não faz sentido criar um convite que já nasce impossível.
+   *
+   * O convite duplicado **não** é verificado aqui: quem o impede é o índice
+   * único do banco (ver leagues.repository.ts). Uma verificação prévia deixaria
+   * dois convites simultâneos passarem.
+   */
+  async invite(
+    leagueId: string,
+    invitedUserId: string,
+    requesterId: string,
+  ): Promise<void> {
+    const participants = new Set(
+      await this.leagues.findParticipantUserIds(leagueId),
+    );
+
+    if (!participants.has(requesterId)) {
+      throw new NotALeagueParticipantError(leagueId, requesterId);
+    }
+
+    if (participants.has(invitedUserId)) {
+      throw new UserAlreadyInLeagueError(leagueId, invitedUserId);
+    }
+
+    const league = await this.leagues.findById(leagueId);
+
+    // A liga existe: a autorização acima só passa se ela tiver participantes.
+    // O `null` é tratado como "não participa" pelo mesmo motivo de sempre —
+    // nunca contar a quem pergunta se a liga existe.
+    if (!league) {
+      throw new NotALeagueParticipantError(leagueId, requesterId);
+    }
+
+    if (leagueStatusAt(league, new Date()) === 'finished') {
+      throw new LeagueAlreadyFinishedError(leagueId);
+    }
+
+    await this.leagues.createInvite(leagueId, invitedUserId);
+  }
+
+  /**
+   * Convites pendentes da pessoa.
+   *
+   * Convite de liga **encerrada não entra na lista**: ele não pode mais ser
+   * aceito, então mostrá-lo só ofereceria um botão que falha. É consequência
+   * direta da regra de aceite — a linha continua no banco e sai junto com a
+   * liga, porque limpá-la exigiria um job que o MVP não tem motivo para ter.
+   */
+  async listPendingInvites(userId: string): Promise<PendingInvite[]> {
+    const invites = await this.leagues.findPendingInvitesForUser(userId);
+
+    // Um único "agora" para todos, como na listagem de ligas: com um
+    // `new Date()` por convite, dois convites da mesma liga poderiam discordar.
+    const now = new Date();
+
+    return invites
+      .map((invite) => ({ ...invite, status: leagueStatusAt(invite, now) }))
+      .filter((invite) => invite.status !== 'finished');
+  }
+
+  /**
+   * Aceita o convite: a pessoa entra na liga e o convite deixa de existir.
+   *
+   * A liga encerrada é recusada aqui, com erro próprio, para a tela poder
+   * explicar o motivo. A mesma condição vai **de novo** para a escrita, no
+   * `where` do repositório: esta verificação é para a mensagem, aquela é a
+   * garantia — entre ler e gravar, a liga pode encerrar.
+   *
+   * Devolve a liga com a situação, para a tela confirmar em que liga a pessoa
+   * acabou de entrar sem precisar de outra requisição.
+   */
+  async acceptInvite(
+    inviteId: string,
+    userId: string,
+  ): Promise<LeagueWithStatus> {
+    const invite = await this.leagues.findInviteForUser(inviteId, userId);
+
+    if (!invite) {
+      throw new LeagueInviteNotFoundError(inviteId, userId);
+    }
+
+    const now = new Date();
+
+    if (leagueStatusAt(invite, now) === 'finished') {
+      throw new LeagueAlreadyFinishedError(invite.leagueId);
+    }
+
+    const consumed = await this.leagues.consumeInvite(invite, userId, now);
+
+    // `false` = o convite não estava mais disponível no instante da escrita
+    // (respondido em paralelo, ou a liga encerrou no meio). Mesma resposta do
+    // convite inexistente: para quem está na tela, o convite não está mais lá.
+    if (!consumed) {
+      throw new LeagueInviteNotFoundError(inviteId, userId);
+    }
+
+    return {
+      id: invite.leagueId,
+      name: invite.leagueName,
+      startsAt: invite.startsAt,
+      endsAt: invite.endsAt,
+      status: leagueStatusAt(invite, now),
+    };
+  }
+
+  /**
+   * Recusa o convite: a linha é apagada e nada é guardado.
+   *
+   * Não confere situação da liga — recusar é sempre possível, inclusive para
+   * limpar um convite que não interessa mais.
+   */
+  async rejectInvite(inviteId: string, userId: string): Promise<void> {
+    const deleted = await this.leagues.deleteInviteForUser(inviteId, userId);
+
+    if (!deleted) {
+      throw new LeagueInviteNotFoundError(inviteId, userId);
+    }
   }
 }
 

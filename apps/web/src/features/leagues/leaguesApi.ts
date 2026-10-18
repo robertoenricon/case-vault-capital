@@ -39,7 +39,7 @@ const GENERIC_FAILURE =
  * na API (uma liga "cancelada", por exemplo) não deve entrar como se a tela
  * soubesse desenhá-lo.
  */
-function isLeagueStatus(value: unknown): value is LeagueStatus {
+export function isLeagueStatus(value: unknown): value is LeagueStatus {
   return STATUSES.some((status) => status === value)
 }
 

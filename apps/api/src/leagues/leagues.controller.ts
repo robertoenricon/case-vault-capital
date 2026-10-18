@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -11,10 +13,18 @@ import type { AuthenticatedUser } from '../auth/authenticated-request.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CreateLeagueDto } from './dto/create-league.dto.js';
+import { InviteToLeagueDto } from './dto/invite-to-league.dto.js';
 import type { LeagueStatus } from './league-status.js';
-import { MalformedLeagueIdError } from './leagues.errors.js';
+import {
+  MalformedInviteIdError,
+  MalformedLeagueIdError,
+} from './leagues.errors.js';
 import { LeaguesService } from './leagues.service.js';
-import type { LeagueCandidate, LeagueWithStatus } from './leagues.service.js';
+import type {
+  LeagueCandidate,
+  LeagueWithStatus,
+  PendingInvite,
+} from './leagues.service.js';
 
 /** O que a API devolve sobre uma liga. Participantes não entram: a tela ainda não os pede. */
 type LeagueResponse = {
@@ -36,6 +46,17 @@ type LeagueCandidateResponse = {
   id: string;
   name: string;
   alreadyParticipant: boolean;
+  invitePending: boolean;
+};
+
+/** Convite pendente, como a tela de quem foi convidado precisa dele. */
+type PendingInviteResponse = {
+  id: string;
+  leagueName: string;
+  /** ISO 8601 em UTC, como na liga. Quem formata é o front. */
+  startsAt: string;
+  endsAt: string;
+  status: LeagueStatus;
 };
 
 /**
@@ -48,6 +69,12 @@ type LeagueCandidateResponse = {
 const PARSE_LEAGUE_ID = new ParseUUIDPipe({
   version: '7',
   exceptionFactory: (message: string) => new MalformedLeagueIdError(message),
+});
+
+/** Mesmo pipe para o id de convite, com o erro (e a mensagem) do convite. */
+const PARSE_INVITE_ID = new ParseUUIDPipe({
+  version: '7',
+  exceptionFactory: (message: string) => new MalformedInviteIdError(message),
 });
 
 /**
@@ -74,6 +101,72 @@ export class LeaguesController {
     const leagues = await this.leagues.listForParticipant(user.id);
 
     return leagues.map(toLeagueResponse);
+  }
+
+  /**
+   * Convites pendentes de quem está chamando. Como em `list`, nunca recebe id
+   * de usuário: o dono dos convites é sempre o do token.
+   *
+   * Declarada **antes** das rotas com `:leagueId` de propósito: o Nest casa a
+   * primeira que combina, então um `@Get(':leagueId')` futuro, declarado acima
+   * desta, engoliria `/leagues/invites` tratando "invites" como id de liga.
+   */
+  @Get('invites')
+  async listInvites(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PendingInviteResponse[]> {
+    const invites = await this.leagues.listPendingInvites(user.id);
+
+    return invites.map(toInviteResponse);
+  }
+
+  /**
+   * Aceita o convite: entra na liga. Devolve a liga, para a tela confirmar
+   * qual foi sem outra requisição.
+   *
+   * 200 e não 201: o recurso criado é a participação, que não tem URL própria
+   * na API — o que o cliente recebe de volta é a liga, que já existia.
+   */
+  @Post('invites/:inviteId/accept')
+  @HttpCode(HttpStatus.OK)
+  async acceptInvite(
+    @Param('inviteId', PARSE_INVITE_ID) inviteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LeagueResponse> {
+    const league = await this.leagues.acceptInvite(inviteId, user.id);
+
+    return toLeagueResponse(league);
+  }
+
+  /**
+   * Recusa o convite. 204 porque não sobra nada para devolver: a recusa não é
+   * guardada, o convite deixa de existir.
+   */
+  @Post('invites/:inviteId/reject')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async rejectInvite(
+    @Param('inviteId', PARSE_INVITE_ID) inviteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.leagues.rejectInvite(inviteId, user.id);
+  }
+
+  /**
+   * Convida alguém para a liga.
+   *
+   * 204: o convite não tem URL própria para o cliente buscar depois, e quem o
+   * recebeu é quem vai lê-lo (em `GET /leagues/invites`). Devolver o id dele a
+   * quem convidou não serviria para nada.
+   */
+  @Post(':leagueId/invites')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async invite(
+    @Param('leagueId', PARSE_LEAGUE_ID) leagueId: string,
+    @Body() body: InviteToLeagueDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    // Quem convida vem do token; o corpo diz só quem está sendo convidado.
+    await this.leagues.invite(leagueId, body.userId, user.id);
   }
 
   /**
@@ -138,6 +231,22 @@ function toCandidateResponse(
     id: candidate.id,
     name: candidate.name,
     alreadyParticipant: candidate.alreadyParticipant,
+    invitePending: candidate.invitePending,
+  };
+}
+
+/**
+ * Mesma regra: campo a campo. O `leagueId` **não** sai — a pessoa ainda não
+ * participa da liga, e o id dela só serviria para tentar rotas que o backend
+ * vai recusar. O que a tela precisa é o nome, o período e a situação.
+ */
+function toInviteResponse(invite: PendingInvite): PendingInviteResponse {
+  return {
+    id: invite.id,
+    leagueName: invite.leagueName,
+    startsAt: invite.startsAt.toISOString(),
+    endsAt: invite.endsAt.toISOString(),
+    status: invite.status,
   };
 }
 

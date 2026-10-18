@@ -13,6 +13,14 @@ export type LeagueCandidate = {
   name: string
   /** `true` quando a pessoa já está na liga: a tela mostra isso no lugar do convite. */
   alreadyParticipant: boolean
+  /**
+   * `true` quando já existe convite pendente para ela nesta liga.
+   *
+   * Vem da API, e não de um estado local do modal: quem sabe quais convites
+   * existem é o backend, e a marca precisa continuar certa depois de fechar e
+   * reabrir o modal.
+   */
+  invitePending: boolean
 }
 
 /** Erro já pronto para a tela: a mensagem é decidida aqui, e o componente só exibe. */
@@ -30,7 +38,9 @@ function isLeagueCandidate(value: unknown): value is LeagueCandidate {
     'name' in value &&
     typeof value.name === 'string' &&
     'alreadyParticipant' in value &&
-    typeof value.alreadyParticipant === 'boolean'
+    typeof value.alreadyParticipant === 'boolean' &&
+    'invitePending' in value &&
+    typeof value.invitePending === 'boolean'
   )
 }
 

@@ -4,8 +4,10 @@ import type { Session } from '../auth/session'
 import { CreateLeagueModal } from './CreateLeagueModal'
 import { InviteFriendsModal } from './InviteFriendsModal'
 import { LeagueCard } from './LeagueCard'
+import { PendingInvites } from './PendingInvites'
 import type { League } from './leaguesApi'
 import { useLeagues } from './useLeagues'
+import { usePendingInvites } from './usePendingInvites'
 // `.button` e `.form__alert` nasceram no formulário de autenticação e são usados
 // aqui também. O import é explícito de propósito: hoje o bundle já carregaria
 // esse CSS por causa do login, mas depender disso seria depender de ordem de
@@ -30,9 +32,10 @@ type DashboardPageProps = {
 export function DashboardPage({ session, onLogout }: DashboardPageProps) {
   const [modalOpen, setModalOpen] = useState(false)
 
-  // Nome da liga criada nesta visita, só para a confirmação. Não é a lista: a
-  // lista vem da API.
-  const [justCreatedName, setJustCreatedName] = useState<string>()
+  // Confirmação do que acabou de acontecer nesta visita (liga criada, convite
+  // aceito), já como a frase que aparece na tela. É estado de interface puro —
+  // a lista de ligas continua vindo da API.
+  const [notice, setNotice] = useState<string>()
 
   // Liga cujo convite está aberto. Guarda a liga, e não só o id: o modal mostra
   // o nome dela, e buscá-lo de novo na lista seria procurar o que já se tem em
@@ -41,11 +44,35 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
 
   const { leagues, loading, error, refresh } = useLeagues(session.accessToken)
 
+  const {
+    invites,
+    error: invitesError,
+    responding,
+    accept,
+    reject,
+  } = usePendingInvites(session.accessToken)
+
   const { user } = session
 
   function handleCreated(league: League) {
-    setJustCreatedName(league.name)
+    setNotice(`Liga “${league.name}” criada. Você já está dentro dela.`)
     setModalOpen(false)
+    refresh()
+  }
+
+  /**
+   * Aceitar o convite muda as duas listas: o convite sai (o próprio hook relê)
+   * e a liga passa a ser uma das minhas — por isso a lista de ligas é relida
+   * aqui. A liga não é inserida na mão na lista: ela vem da API, com a situação
+   * e a ordenação que o backend decide.
+   */
+  async function handleAccept(inviteId: string) {
+    const joined = await accept(inviteId)
+
+    // `undefined` = falhou, e o hook já colocou a mensagem de erro na tela.
+    if (!joined) return
+
+    setNotice(`Você entrou na liga “${joined.name}”.`)
     refresh()
   }
 
@@ -146,10 +173,30 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
         </div>
 
         {/* `role="status"` e não `alert`: é confirmação, não problema. */}
-        {justCreatedName && (
+        {notice && (
           <p className="form__alert form__alert--success" role="status">
-            Liga “{justCreatedName}” criada. Você já está dentro dela.
+            {notice}
           </p>
+        )}
+
+        {/* Erro de convite (busca ou resposta) fica acima do bloco, separado do
+            erro da lista de ligas: são duas requisições independentes, e uma
+            falhar não impede a outra de funcionar. */}
+        {invitesError && (
+          <p className="form__alert form__alert--error" role="alert">
+            {invitesError}
+          </p>
+        )}
+
+        {/* O bloco só existe quando há convite: sem nenhum, não há aviso a dar
+            — e é por isso que o hook de convites não tem estado "vazio". */}
+        {invites && invites.length > 0 && (
+          <PendingInvites
+            invites={invites}
+            responding={responding}
+            onAccept={handleAccept}
+            onReject={reject}
+          />
         )}
 
         {leaguesSection()}
