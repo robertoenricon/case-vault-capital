@@ -7,8 +7,10 @@
  * É também o que permite testar a regra sem segredo, sem lib e sem decodificar
  * token nenhum: o teste injeta um emissor falso e verifica o que foi assinado.
  *
- * Interface enxuta de propósito: o login só precisa emitir. O `verify` entra
- * quando existir rota protegida para proteger, não antes.
+ * Interface enxuta de propósito: o login só precisa emitir. A verificação
+ * nasceu com a primeira rota protegida e foi para um contrato próprio
+ * (access-token-verifier.ts), em vez de virar um segundo método aqui — assim
+ * nenhum dos dois consumidores carrega método que não usa.
  */
 
 /**

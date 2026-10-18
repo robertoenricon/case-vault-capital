@@ -27,3 +27,40 @@ export class InvalidCredentialsError extends DomainError {
     this.name = 'InvalidCredentialsError';
   }
 }
+
+/**
+ * Rota protegida chamada sem `Authorization: Bearer <token>`.
+ *
+ * Separado do token inválido porque são situações diferentes para quem está na
+ * tela: aqui provavelmente a sessão nunca existiu (ou o front esqueceu de
+ * mandar o header), não expirou.
+ */
+export class MissingAccessTokenError extends DomainError {
+  readonly kind = 'unauthorized' as const;
+  readonly publicMessage = 'Entre para continuar.';
+
+  constructor(method: string, path: string) {
+    // Qual rota foi chamada sem token vai para o log: é o que mostra se o
+    // problema é o front esquecendo o header numa chamada específica.
+    super(`Requisição sem token de acesso: ${method} ${path}`);
+    this.name = 'MissingAccessTokenError';
+  }
+}
+
+/**
+ * Token presente, mas que não vale: expirado, assinado com outro segredo ou
+ * adulterado.
+ *
+ * A mensagem fala de sessão expirada por ser o caso real em quase todo acesso
+ * legítimo — o token vale 7 dias. Quem adulterou um token lê a mesma frase: o
+ * verificador não distingue as causas de propósito (ver access-token-verifier.ts).
+ */
+export class InvalidAccessTokenError extends DomainError {
+  readonly kind = 'unauthorized' as const;
+  readonly publicMessage = 'Sua sessão expirou. Entre novamente para continuar.';
+
+  constructor(method: string, path: string) {
+    super(`Token de acesso rejeitado em: ${method} ${path}`);
+    this.name = 'InvalidAccessTokenError';
+  }
+}

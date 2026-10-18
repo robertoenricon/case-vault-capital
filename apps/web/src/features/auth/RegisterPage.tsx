@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent } from 'react'
+import { Field } from '../../components/Field'
+import { describedBy } from '../../components/describedBy'
 import {
   EMPTY_REGISTER_VALUES,
   REGISTER_RULES,
@@ -20,48 +22,6 @@ type RegisterPageProps = {
   /** Chamado quando a conta já existe no banco, com o que a API devolveu. */
   onRegistered: (user: RegisteredUser) => void
   onLoginClick: () => void
-}
-
-type FieldProps = {
-  id: string
-  label: string
-  error?: string
-  hint?: string
-  children: ReactNode
-}
-
-/**
- * Componente que encapsula um campo do formulário, incluindo rótulo, input e mensagens de erro ou dica.
- */
-function Field({ id, label, error, hint, children }: FieldProps) {
-  return (
-    <div className="field">
-      <label className="field__label" htmlFor={id}>
-        {label}
-      </label>
-
-      {children}
-
-      {/* `role="alert"` para o leitor de tela anunciar o erro no momento em que ele aparece. */}
-      {error && (
-        <p className="field__error" id={`${id}-error`} role="alert">
-          {error}
-        </p>
-      )}
-      {!error && hint && (
-        <p className="field__hint" id={`${id}-hint`}>
-          {hint}
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** Liga o input à mensagem que está sendo exibida embaixo dele (erro tem prioridade). */
-function describedBy(id: string, error?: string, hint?: string) {
-  if (error) return `${id}-error`
-  if (hint) return `${id}-hint`
-  return undefined
 }
 
 /**

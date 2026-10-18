@@ -6,8 +6,8 @@ import type {
 } from './access-token-issuer.js';
 
 /**
- * Implementação concreta na borda: é o único arquivo do projeto que conhece o
- * @nestjs/jwt.
+ * Implementação concreta na borda: junto com o `JwtAccessTokenVerifier`, são os
+ * dois únicos arquivos do projeto que conhecem o @nestjs/jwt.
  *
  * Segredo e validade não aparecem aqui — vêm configurados no `JwtModule` (ver
  * auth.module.ts). Assim mudar a validade do token é mexer em um lugar só, e
