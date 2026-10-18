@@ -18,9 +18,7 @@ async function bootstrap() {
 
   app.useGlobalPipes(
     new ValidationPipe({
-      // Campo não declarado no DTO é descartado...
       whitelist: true,
-      // ...e, se vier, a requisição é rejeitada em vez de ignorada em silêncio.
       forbidNonWhitelisted: true,
       // Sem isto o payload chega como objeto puro: os @Transform do DTO não
       // rodam e o que o tipo promete como number chega como string.
