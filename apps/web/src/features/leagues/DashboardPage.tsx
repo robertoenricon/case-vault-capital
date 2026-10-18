@@ -1,7 +1,10 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type { Session } from '../auth/session'
 import { CreateLeagueModal } from './CreateLeagueModal'
-import type { CreatedLeague } from './createLeagueApi'
+import { LeagueCard } from './LeagueCard'
+import type { League } from './leaguesApi'
+import { useLeagues } from './useLeagues'
 // `.button` e `.form__alert` nasceram no formulário de autenticação e são usados
 // aqui também. O import é explícito de propósito: hoje o bundle já carregaria
 // esse CSS por causa do login, mas depender disso seria depender de ordem de
@@ -10,31 +13,91 @@ import '../auth/authForm.css'
 import './DashboardPage.css'
 
 type DashboardPageProps = {
-  /** A sessão inteira, não só o usuário: criar liga é rota protegida e precisa do token. */
+  /** A sessão inteira, não só o usuário: as rotas de liga são protegidas e precisam do token. */
   session: Session
   onLogout: () => void
 }
 
 /**
- * Primeira tela de quem está logado: o painel das ligas da pessoa.
+ * Primeira tela de quem está logado: as ligas de que a pessoa participa.
  *
- * A tela ainda não **busca** ligas — não existe rota de listagem. O que ela
- * mostra é o que acabou de ser criado nesta visita, direto da resposta da API;
- * ao recarregar a página, volta ao estado vazio. É uma lacuna conhecida, não um
- * bug escondido: a listagem entra com o `GET /leagues`.
+ * A lista vem da API em toda montagem da tela, e é por isso que ela sobrevive
+ * ao recarregar a página. O componente não guarda cópia editável dela: depois
+ * de criar uma liga, pede a lista de novo em vez de inserir a nova na mão —
+ * assim não existem duas versões da verdade para divergirem.
  */
 export function DashboardPage({ session, onLogout }: DashboardPageProps) {
   const [modalOpen, setModalOpen] = useState(false)
 
-  // Liga criada nesta visita. Mora aqui, e não no modal, porque sobrevive ao
-  // fechamento dele.
-  const [createdLeague, setCreatedLeague] = useState<CreatedLeague>()
+  // Nome da liga criada nesta visita, só para a confirmação. Não é a lista: a
+  // lista vem da API.
+  const [justCreatedName, setJustCreatedName] = useState<string>()
+
+  const { leagues, loading, error, refresh } = useLeagues(session.accessToken)
 
   const { user } = session
 
-  function handleCreated(league: CreatedLeague) {
-    setCreatedLeague(league)
+  function handleCreated(league: League) {
+    setJustCreatedName(league.name)
     setModalOpen(false)
+    refresh()
+  }
+
+  /**
+   * Os quatro estados do carregamento, em `if` com saída antecipada em vez de
+   * ternários encadeados no JSX: a ordem das perguntas fica legível, e nenhum
+   * estado pode aparecer junto com outro por acidente.
+   *
+   * Não é um componente, é uma função que devolve JSX — não tem estado nem
+   * hook próprio, então não precisa ser um.
+   */
+  function leaguesSection(): ReactNode {
+    if (loading) {
+      return (
+        <p className="dashboard__loading" role="status">
+          Carregando suas ligas…
+        </p>
+      )
+    }
+
+    if (error) {
+      return (
+        <div className="dashboard__retry">
+          <p className="form__alert form__alert--error" role="alert">
+            {error}
+          </p>
+          <button type="button" className="button button--ghost" onClick={refresh}>
+            Tentar de novo
+          </button>
+        </div>
+      )
+    }
+
+    // Vazio é tela de verdade, não tabela em branco: é o primeiro estado de
+    // toda conta nova.
+    if (!leagues || leagues.length === 0) {
+      return (
+        <section className="dashboard__empty" aria-labelledby="empty-title">
+          <h2 className="dashboard__empty-title" id="empty-title">
+            Nenhuma liga por aqui
+          </h2>
+          <p className="dashboard__empty-text">
+            Você ainda não participa de nenhuma liga. Comece criando a sua — você
+            define o período da disputa e já entra como participante.
+          </p>
+        </section>
+      )
+    }
+
+    return (
+      <ul className="dashboard__list">
+        {leagues.map((league) => (
+          // `key` com o id da liga, nunca o índice: a lista reordena quando uma
+          // liga muda de situação, e índice faria o React reaproveitar o card errado.
+          <LeagueCard key={league.id} league={league} />
+        ))}
+      </ul>
+    )
   }
 
   return (
@@ -72,39 +135,14 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
           </button>
         </div>
 
-        {createdLeague ? (
-          <section className="dashboard__created">
-            <p className="form__alert form__alert--success" role="status">
-              Liga criada. Você já está dentro dela.
-            </p>
-
-            <h2 className="dashboard__league-name">{createdLeague.name}</h2>
-            <p className="dashboard__league-period">
-              {formatPeriod(createdLeague.startsAt, createdLeague.endsAt)}
-            </p>
-            <p className="dashboard__league-note">
-              A lista com todas as suas ligas aparece aqui quando a rota de
-              listagem existir — por enquanto, esta visita mostra só o que você
-              acabou de criar.
-            </p>
-          </section>
-        ) : (
-          /*
-            Estado vazio, e não uma tabela em branco (10.3). Sem rota de
-            listagem, é o que a tela sabe dizer de verdade sobre ligas antigas:
-            nada. Os estados de carregando e erro entram junto da busca.
-          */
-          <section className="dashboard__empty" aria-labelledby="empty-title">
-            <h2 className="dashboard__empty-title" id="empty-title">
-              Nenhuma liga por aqui
-            </h2>
-            <p className="dashboard__empty-text">
-              Você ainda não criou nenhuma liga nesta visita. Comece criando a
-              sua — você define o período da disputa e já entra como
-              participante.
-            </p>
-          </section>
+        {/* `role="status"` e não `alert`: é confirmação, não problema. */}
+        {justCreatedName && (
+          <p className="form__alert form__alert--success" role="status">
+            Liga “{justCreatedName}” criada. Você já está dentro dela.
+          </p>
         )}
+
+        {leaguesSection()}
       </main>
 
       {/*
@@ -121,15 +159,4 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
       )}
     </div>
   )
-}
-
-/**
- * Período no formato de quem está lendo. A API manda ISO em UTC; o front
- * formata, mas não recalcula nada — o dia exibido é o instante que o backend
- * gravou, lido no fuso do navegador.
- */
-function formatPeriod(startsAt: string, endsAt: string): string {
-  const format = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' })
-
-  return `${format.format(new Date(startsAt))} até ${format.format(new Date(endsAt))}`
 }

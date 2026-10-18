@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Field } from '../../components/Field'
 import { describedBy } from '../../components/describedBy'
-import type { CreatedLeague } from './createLeagueApi'
+import type { League } from './leaguesApi'
 import {
   EMPTY_CREATE_LEAGUE_VALUES,
   LEAGUE_RULES,
@@ -23,7 +23,7 @@ type CreateLeagueModalProps = {
   /** Token da sessão: a rota de criar liga é protegida. */
   accessToken: string
   /** Chamado quando a liga já existe no banco, com o que a API devolveu. */
-  onCreated: (league: CreatedLeague) => void
+  onCreated: (league: League) => void
   onClose: () => void
 }
 

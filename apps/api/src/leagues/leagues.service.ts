@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { buildLeaguePeriod } from './league-period.js';
+import { leagueStatusAt } from './league-status.js';
+import type { LeagueStatus } from './league-status.js';
 import { LeaguesRepository } from './leagues.repository.js';
 import type { StoredLeague } from './leagues.repository.js';
 
@@ -15,6 +17,25 @@ export type CreateLeagueInput = {
   creatorId: string;
 };
 
+/**
+ * Liga como o domínio a entrega: o que está gravado mais a situação, que não é
+ * coluna — é calculada a cada leitura a partir do período e do instante atual.
+ */
+export type LeagueWithStatus = StoredLeague & {
+  status: LeagueStatus;
+};
+
+/**
+ * Ordem em que as ligas aparecem na lista. A que está valendo vem primeiro,
+ * porque é nela que a pessoa tem algo a fazer agora; a encerrada fica por
+ * último, presente como histórico.
+ */
+const STATUS_ORDER: Record<LeagueStatus, number> = {
+  running: 0,
+  scheduled: 1,
+  finished: 2,
+};
+
 @Injectable()
 export class LeaguesService {
   constructor(private readonly leagues: LeaguesRepository) {}
@@ -27,24 +48,69 @@ export class LeaguesService {
    * dita instante), e quem cria entra como participante — sem papel e sem
    * permissão, porque numa liga entre amigos não há o que autorizar.
    */
-  async create(input: CreateLeagueInput): Promise<StoredLeague> {
-    // `new Date()` aqui, e não dentro da regra: a regra recebe o instante e por
-    // isso é testável na virada do dia. Este service é o lugar onde "agora"
-    // entra no sistema.
+  async create(input: CreateLeagueInput): Promise<LeagueWithStatus> {
+    // Um único "agora" para a regra do período e para a situação: com duas
+    // chamadas a `new Date()` os dois poderiam cair em lados diferentes da
+    // virada do dia. Este service é o lugar onde o tempo entra no sistema.
+    const now = new Date();
+
     const period = buildLeaguePeriod(
       {
         startDate: input.startDate,
         endDate: input.endDate,
         timeZoneOffsetMinutes: input.timeZoneOffsetMinutes,
       },
-      new Date(),
+      now,
     );
 
-    return this.leagues.create({
+    const league = await this.leagues.create({
       name: input.name,
       startsAt: period.startsAt,
       endsAt: period.endsAt,
       creatorId: input.creatorId,
     });
+
+    return { ...league, status: leagueStatusAt(league, now) };
   }
+
+  /**
+   * Ligas de que a pessoa participa, com a situação de cada uma, na ordem em
+   * que a tela as mostra.
+   *
+   * A situação é calculada na leitura, não guardada: uma coluna de situação
+   * ficaria errada sozinha na virada da meia-noite, e precisaria de um job só
+   * para envelhecer bem.
+   *
+   * A ordenação é feita aqui, em memória, e não no SQL, porque depende da
+   * situação — que o banco não conhece. Vale enquanto um participante tem
+   * poucas ligas, que é o caso de uma liga entre amigos. Com paginação isso
+   * muda: aí a ordem precisa ir para a consulta, e a situação com ela.
+   */
+  async listForParticipant(userId: string): Promise<LeagueWithStatus[]> {
+    const leagues = await this.leagues.findByParticipant(userId);
+
+    // O mesmo instante para todas: com um `new Date()` por liga, duas ligas com
+    // o mesmo fim poderiam sair uma "em andamento" e outra "encerrada".
+    const now = new Date();
+
+    return leagues
+      .map((league) => ({ ...league, status: leagueStatusAt(league, now) }))
+      .sort(compareForListing);
+  }
+}
+
+/** Situação primeiro; dentro do mesmo grupo, a de início mais recente antes. */
+function compareForListing(
+  a: LeagueWithStatus,
+  b: LeagueWithStatus,
+): number {
+  const byStatus = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+  if (byStatus !== 0) return byStatus;
+
+  const byStart = b.startsAt.getTime() - a.startsAt.getTime();
+  if (byStart !== 0) return byStart;
+
+  // Desempate final para a ordem não ficar à mercê do que o banco devolveu
+  // primeiro. O id é UUID v7, então o maior é o criado mais recentemente.
+  return a.id < b.id ? 1 : -1;
 }

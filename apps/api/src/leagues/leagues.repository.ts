@@ -51,4 +51,22 @@ export class LeaguesRepository {
       select: { id: true, name: true, startsAt: true, endsAt: true },
     });
   }
+
+  /**
+   * Ligas de que a pessoa participa.
+   *
+   * O filtro por participação **é** a autorização da listagem: não existe aqui
+   * consulta que devolva liga de que a pessoa não participa, então não há como
+   * uma rota esquecer de filtrar e vazar liga alheia.
+   *
+   * Sem `orderBy`: a ordem da lista depende da situação de cada liga, que é
+   * calculada no service (ver league-status.ts). Ordenar aqui por data daria uma
+   * ordem que o service refaz em seguida.
+   */
+  async findByParticipant(userId: string): Promise<StoredLeague[]> {
+    return await this.prisma.league.findMany({
+      where: { participants: { some: { userId } } },
+      select: { id: true, name: true, startsAt: true, endsAt: true },
+    });
+  }
 }

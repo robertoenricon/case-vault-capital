@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { createLeague } from './createLeagueApi'
-import type { CreatedLeague } from './createLeagueApi'
+import type { League } from './leaguesApi'
 import type { CreateLeagueData } from './createLeagueValidation'
 
 type UseCreateLeagueResult = {
@@ -18,7 +18,7 @@ type UseCreateLeagueResult = {
  */
 export function useCreateLeague(
   accessToken: string,
-  onCreated: (league: CreatedLeague) => void,
+  onCreated: (league: League) => void,
 ): UseCreateLeagueResult {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string>()

@@ -1,0 +1,86 @@
+/*
+ * Card de uma liga na lista. Fica junto do componente, e não no CSS do
+ * dashboard, para o card não depender de quem o renderiza — a lista decide o
+ * espaçamento entre os cards, o card decide como ele é por dentro.
+ */
+
+.league-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  transition: border-color 0.2s var(--ease-out);
+
+  &:hover {
+    border-color: var(--edge-strong);
+  }
+
+  @media (max-width: 480px) {
+    /* A etiqueta desce para baixo do nome: lado a lado, as duas informações
+       disputam uma largura que não existe no celular. */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 16px 18px;
+  }
+}
+
+.league-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Nome comprido encolhe aqui em vez de empurrar a etiqueta para fora. */
+  min-width: 0;
+}
+
+.league-card__name {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 500;
+  margin: 0;
+  /* O nome pode ter 60 caracteres sem espaço nenhum. */
+  overflow-wrap: anywhere;
+}
+
+.league-card__period {
+  font-size: 14px;
+  color: var(--cream-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Etiqueta de situação. `nowrap` porque "Em andamento" quebrado em duas linhas
+ * dentro da pílula fica ilegível.
+ */
+.league-card__status {
+  flex-shrink: 0;
+  padding: 5px 11px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+/* A que está valendo é a única em dourado cheio: é onde a pessoa tem o que fazer. */
+.league-card__status--running {
+  color: var(--surface);
+  background: var(--gold);
+}
+
+.league-card__status--scheduled {
+  color: var(--gold);
+  background: hsl(var(--gold-hsl) / 0.12);
+  border-color: hsl(var(--gold-hsl) / 0.3);
+}
+
+/* Encerrada fica discreta: está na lista como histórico, não como convite. */
+.league-card__status--finished {
+  color: var(--cream-soft);
+  background: var(--surface-overlay);
+  border-color: var(--edge);
+}
