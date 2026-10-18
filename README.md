@@ -1,6 +1,4 @@
-# case-vault-capital
-
-## Desafio técnico Vault Capital
+## Desafio técnico Case Vault Capital
 
 Liga trading: amigos criam uma liga, recebem o mesmo saldo fictício e
 competem operando cripto com cotação real.

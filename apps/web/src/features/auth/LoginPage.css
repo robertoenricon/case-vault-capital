@@ -1,0 +1,140 @@
+.login {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login__card {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 32px;
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dark);
+
+  @media (max-width: 480px) {
+    padding: 24px 20px;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
+.login__header {
+  margin-bottom: 6px;
+}
+
+/* Assinatura da marca acima do título da ação. */
+.login__brand {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 14px;
+}
+
+.login__title {
+  font-size: 30px;
+  letter-spacing: -0.4px;
+  margin: 0 0 6px;
+}
+
+.login__subtitle {
+  font-size: 15px;
+  color: var(--cream-soft);
+}
+
+/* Campo de formulário: rótulo acima, input abaixo. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field__label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* O input usa o fundo mais profundo da paleta para "afundar" dentro do card. */
+.field__input {
+  width: 100%;
+  padding: 11px 12px;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  transition:
+    border-color 0.2s var(--ease-out),
+    box-shadow 0.2s var(--ease-out);
+
+  &::placeholder {
+    color: var(--cream-soft);
+  }
+
+  &:hover {
+    border-color: var(--edge-strong);
+  }
+
+  /* Substitui o anel global de foco por borda + halo, que cabe melhor no campo. */
+  &:focus-visible {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px hsl(var(--gold-hsl) / 0.2);
+  }
+}
+
+.button {
+  font-weight: 500;
+  padding: 11px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color 0.2s var(--ease-out),
+    border-color 0.2s var(--ease-out);
+}
+
+/* Dourado sobre fundo escuro: mesmo par de cores que o site usa em ::selection. */
+.button--primary {
+  color: var(--surface);
+  background: var(--gold);
+
+  &:hover {
+    background: var(--gold-bright);
+  }
+}
+
+.button--ghost {
+  color: var(--gold);
+  background: var(--surface-overlay);
+  border-color: var(--edge);
+
+  &:hover {
+    background: var(--surface-overlay-hover);
+    border-color: var(--edge-strong);
+  }
+}
+
+/* Separador com texto no meio da linha. */
+.login__separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--cream-soft);
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--edge);
+  }
+}
