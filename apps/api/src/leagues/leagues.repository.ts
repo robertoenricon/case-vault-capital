@@ -14,6 +14,11 @@ export type NewLeague = {
   endsAt: Date;
   /** Quem criou. Entra como participante junto da liga, não depois. */
   creatorId: string;
+  /**
+   * Saldo fictício com que todo participante desta liga vai começar, em texto
+   * decimal. A liga guarda este valor; quem decide qual é ele é o service.
+   */
+  initialBalance: string;
 };
 
 /** O que volta do banco. `createdAt` não entra: ninguém precisa dele hoje. */
@@ -22,6 +27,21 @@ export type StoredLeague = {
   name: string;
   startsAt: Date;
   endsAt: Date;
+};
+
+/**
+ * A liga **mais o saldo de quem está olhando** nela.
+ *
+ * São dois dados de tabelas diferentes, e o tipo diz isso: o saldo não é
+ * atributo da liga (cada participante tem o seu), é da participação. Quem
+ * recebe este tipo está sempre olhando a liga pelos olhos de uma pessoa.
+ */
+export type StoredParticipantLeague = StoredLeague & {
+  /**
+   * Saldo em dinheiro desta pessoa nesta liga, em texto decimal — ver
+   * `toDecimalText`.
+   */
+  cashBalance: string;
 };
 
 /**
@@ -47,7 +67,7 @@ export type StoredInvite = {
  * (ver schema.prisma) — copiar criaria duas verdades para o mesmo dado, e a
  * cópia envelheceria no dia em que a pessoa trocasse o nome.
  *
- * `joinedAt` **não** sai: a tela mostra só o nome, por decisão registrada. O
+ * `joinedAt` **não** sai: a tela mostra nome e saldo, por decisão registrada. O
  * campo existe na tabela e serve à ordenação, mas não atravessa esta camada
  * enquanto ninguém o exibir.
  */
@@ -59,7 +79,28 @@ export type StoredParticipant = {
    */
   userId: string;
   name: string;
+  /** Saldo em dinheiro desta pessoa nesta liga, em texto decimal. */
+  cashBalance: string;
 };
+
+/**
+ * Coluna `numeric` do Postgres para texto decimal.
+ *
+ * O driver entrega `numeric` como `Decimal` (decimal.js, embutido no Prisma), e
+ * é esta função que impede esse tipo de atravessar para o service — mesma regra
+ * do resto do arquivo: nada do ORM sai daqui.
+ *
+ * Texto e não `number`: `toNumber()` jogaria o saldo num ponto flutuante
+ * binário, onde 0.1 + 0.2 não dá 0.3. O valor segue como string exata até a
+ * tela, que só o formata.
+ *
+ * `toFixed()` sem argumento, e não `toString()`: para valores muito grandes ou
+ * muito pequenos o `toString()` do decimal.js devolve notação exponencial
+ * (`1e+21`), que nem a tela nem uma futura conta de dinheiro saberiam ler.
+ */
+function toDecimalText(value: Prisma.Decimal): string {
+  return value.toFixed();
+}
 
 /** Violação de índice único no Postgres, pelo código de erro do Prisma. */
 const UNIQUE_VIOLATION = 'P2002';
@@ -76,47 +117,89 @@ export class LeaguesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Cria a liga **e** a participação de quem criou.
+   * Cria a liga **e** a participação de quem criou, já com o saldo inicial.
    *
    * O write aninhado do Prisma roda os dois INSERT numa única transação: ou
    * existe liga com o criador dentro, ou não existe liga. Liga órfã, sem
    * ninguém, nunca chega a ser gravada — e é por isso que as duas escritas
-   * ficam em uma chamada só, em vez de duas sequenciais.
+   * ficam em uma chamada só, em vez de duas sequenciais. O saldo entra na mesma
+   * transação pelo mesmo motivo: participante sem saldo seria estado pela
+   * metade, e a tela mostraria carteira vazia numa liga que nem começou.
+   *
+   * O mesmo `initialBalance` vai para as duas linhas de propósito: a liga
+   * guarda a base de comparação do ranking, e a participação, o dinheiro que
+   * vai ser gasto. Começam iguais e separam na primeira ordem.
    */
-  async create(league: NewLeague): Promise<StoredLeague> {
+  async create(league: NewLeague): Promise<StoredParticipantLeague> {
     // Se um dia existir exclusão de conta, o id do criador pode não existir
     // mais no meio desta requisição e o Postgres recusa a chave estrangeira
     // (P2003). Hoje não há como apagar conta, então não há erro de domínio para
     // esse caso: criar um agora seria tratar um cenário que não existe.
-    return await this.prisma.league.create({
+    const created = await this.prisma.league.create({
       data: {
         name: league.name,
         startsAt: league.startsAt,
         endsAt: league.endsAt,
-        participants: { create: { userId: league.creatorId } },
+        // String decimal, nunca `number`: o Prisma aceita texto em coluna
+        // `numeric` e o valor chega ao banco exatamente como foi configurado.
+        initialBalance: league.initialBalance,
+        participants: {
+          create: {
+            userId: league.creatorId,
+            cashBalance: league.initialBalance,
+          },
+        },
       },
       // `select` explícito, como no módulo de contas: coluna nova no banco não
       // passa a sair da camada de dados sem alguém decidir.
       select: { id: true, name: true, startsAt: true, endsAt: true },
     });
+
+    // O saldo devolvido é o que acabou de ser gravado, não uma segunda consulta:
+    // quem criou a liga começa com a base dela, e é este o valor que a tela
+    // mostra no card logo após a criação.
+    return { ...created, cashBalance: league.initialBalance };
   }
 
   /**
-   * Ligas de que a pessoa participa.
+   * Ligas de que a pessoa participa, **cada uma com o saldo dela ali**.
    *
    * O filtro por participação **é** a autorização da listagem: não existe aqui
    * consulta que devolva liga de que a pessoa não participa, então não há como
    * uma rota esquecer de filtrar e vazar liga alheia.
    *
+   * O saldo vem no mesmo `select`, por um join filtrado pelo mesmo `userId` —
+   * nunca o saldo de outra pessoa. Numa consulta só, e não uma por liga: com a
+   * carteira buscada à parte, seriam N+1 idas ao banco para montar uma tela.
+   *
    * Sem `orderBy`: a ordem da lista depende da situação de cada liga, que é
    * calculada no service (ver league-status.ts). Ordenar aqui por data daria uma
    * ordem que o service refaz em seguida.
    */
-  async findByParticipant(userId: string): Promise<StoredLeague[]> {
-    return await this.prisma.league.findMany({
+  async findByParticipant(userId: string): Promise<StoredParticipantLeague[]> {
+    const leagues = await this.prisma.league.findMany({
       where: { participants: { some: { userId } } },
-      select: { id: true, name: true, startsAt: true, endsAt: true },
+      select: {
+        id: true,
+        name: true,
+        startsAt: true,
+        endsAt: true,
+        // O `where` repetido aqui é o que garante que o saldo é o de quem está
+        // perguntando: sem ele, viriam as participações de toda a liga.
+        participants: {
+          where: { userId },
+          select: { cashBalance: true },
+        },
+      },
     });
+
+    // Achata o join. A participação existe sempre — é ela que faz a liga entrar
+    // nesta lista —, então o `[0]` não é aposta: é a mesma linha que o `where`
+    // de cima usou para filtrar.
+    return leagues.map(({ participants, ...league }) => ({
+      ...league,
+      cashBalance: toDecimalText(participants[0].cashBalance),
+    }));
   }
 
   /**
@@ -161,14 +244,20 @@ export class LeaguesRepository {
       where: { leagueId },
       // `select` explícito dos dois lados do join: nem coluna nova de
       // participação nem coluna nova de conta passa a sair sem alguém decidir.
-      select: { userId: true, user: { select: { name: true } } },
+      select: {
+        userId: true,
+        cashBalance: true,
+        user: { select: { name: true } },
+      },
       orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
     });
 
-    // Achata o join: nenhuma forma aninhada do Prisma atravessa para o service.
+    // Achata o join: nenhuma forma aninhada do Prisma atravessa para o service,
+    // e o `Decimal` do saldo vira texto aqui, não lá.
     return participants.map((participant) => ({
       userId: participant.userId,
       name: participant.user.name,
+      cashBalance: toDecimalText(participant.cashBalance),
     }));
   }
 
@@ -283,13 +372,21 @@ export class LeaguesRepository {
   }
 
   /**
-   * Consome o convite: cria a participação **e** apaga o convite, numa única
-   * transação. Ou a pessoa está na liga e o convite sumiu, ou nada aconteceu —
-   * nunca sobra convite aceito que não virou participação.
+   * Consome o convite: cria a participação **com o saldo inicial da liga** e
+   * apaga o convite, numa única transação. Ou a pessoa está na liga, com
+   * dinheiro para operar, e o convite sumiu, ou nada aconteceu — nunca sobra
+   * convite aceito que não virou participação, nem participante sem saldo.
    *
-   * Devolve `false` quando o convite já não estava disponível no instante da
+   * O saldo sai de `leagues.initial_balance`, **não** da configuração do
+   * ambiente: é o que faz quem entra no meio da liga começar com o mesmo valor
+   * de quem a criou, mesmo que o padrão tenha mudado no intervalo. Lido dentro
+   * da transação, junto da escrita que o usa.
+   *
+   * Devolve `null` quando o convite já não estava disponível no instante da
    * escrita: alguém respondeu em paralelo, ou a liga encerrou entre a leitura e
-   * o commit.
+   * o commit. Quando dá certo, devolve o saldo com que a pessoa entrou — a tela
+   * mostra a liga logo depois, e buscá-lo de novo seria uma segunda consulta
+   * para um valor que esta já tem.
    *
    * A corrida é resolvida por **escrita condicional**, não por lock: o
    * `deleteMany` leva no `where` tudo o que precisa valer (o convite é desta
@@ -306,11 +403,23 @@ export class LeaguesRepository {
     invite: { id: string; leagueId: string },
     userId: string,
     notFinishedAt: Date,
-  ): Promise<boolean> {
+  ): Promise<string | null> {
     return await this.prisma.$transaction(async (tx) => {
       // Todas as operações usam o client da transação (`tx`), nunca
       // `this.prisma`: uma chamada ao client global aqui ficaria fora da
       // transação e quebraria a atomicidade sem erro aparente.
+
+      // A base da liga é lida **antes** de qualquer escrita de propósito: se a
+      // liga não estiver mais lá, a transação termina sem ter mexido em nada.
+      // Na ordem inversa, o convite já estaria apagado e sair daqui exigiria um
+      // `throw` só para desfazer o que não devia ter começado.
+      const league = await tx.league.findUnique({
+        where: { id: invite.leagueId },
+        select: { initialBalance: true },
+      });
+
+      if (!league) return null;
+
       const consumed = await tx.leagueInvite.deleteMany({
         where: {
           id: invite.id,
@@ -319,11 +428,18 @@ export class LeaguesRepository {
         },
       });
 
-      if (consumed.count === 0) return false;
+      if (consumed.count === 0) return null;
 
       try {
         await tx.leagueParticipant.create({
-          data: { leagueId: invite.leagueId, userId },
+          data: {
+            leagueId: invite.leagueId,
+            userId,
+            // O saldo da pessoa começa igual à base da liga. As duas colunas
+            // existem porque daqui para frente elas divergem: esta é gasta nas
+            // ordens, aquela continua sendo a referência do ranking.
+            cashBalance: league.initialBalance,
+          },
           select: { id: true },
         });
       } catch (error) {
@@ -339,7 +455,7 @@ export class LeaguesRepository {
         throw error;
       }
 
-      return true;
+      return toDecimalText(league.initialBalance);
     });
   }
 

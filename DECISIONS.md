@@ -15,6 +15,8 @@ Cadastro de conta:
 - Liga Ordem: em andamento primeiro, depois agendadas, encerradas no fim; dentro de cada grupo, a de início mais recente antes.
 - Lista de participantes: mostro só o nome de cada um.
 - Ordem dos participantes: ordem de entrada na liga.
+- Cada usuário recebe, por decisão sua, US$ 10.000 fictícios por liga, 'leagues.initial_balance', guarda o valor do .env no momento que a liga é criada. Mesmo que eu mude o .env, o valor já foi salvo e garante que todos tem o mesmo saldo inicial.
+- Não pode comprar sem saldo nem vender mais criptomoedas do que possui.
 
 ## 2. Arquitetura:
 - Ambiente local em Docker.
@@ -58,6 +60,7 @@ Liga:
 - Cirei uma tabela, responsável por armazenar os convites pendentes, "aceitar" virou um transação (apaga convite e cria participação, simples e objetivo).
 - Lista de participantes da liga, num modal que abre clicando no nome da liga.
 - A autorização sai da própria consulta: quem pede a lista precisa estar nela.
+- Todos os participantes da liga, conseguem ver o saldo inicial de cada um, assim, evita duvidas se alguem está começando com saldo maior.
 
 
 ## 4. O que ficou de fora:

@@ -1,4 +1,4 @@
-import { STATUS_LABEL, formatPeriod } from './leagueDisplay'
+import { STATUS_LABEL, formatPeriod, formatUsd } from './leagueDisplay'
 import type { League } from './leaguesApi'
 import '../auth/authForm.css'
 import './LeagueCard.css'
@@ -48,6 +48,16 @@ export function LeagueCard({
         </h3>
         <p className="league-card__period">
           {formatPeriod(league.startsAt, league.endsAt)}
+        </p>
+
+        {/* O saldo é desta liga, não da conta: a mesma pessoa tem uma carteira
+            em cada liga de que participa. O rótulo diz isso em uma palavra —
+            sem ele, "US$ 10.000,00" solto parece saldo da plataforma. */}
+        <p className="league-card__balance">
+          <span className="league-card__balance-label">Seu saldo na liga</span>
+          <strong className="league-card__balance-value">
+            {formatUsd(league.cashBalance)}
+          </strong>
         </p>
       </div>
 

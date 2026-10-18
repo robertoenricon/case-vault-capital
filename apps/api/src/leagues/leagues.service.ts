@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { UsersService } from '../users/users.service.js';
+import { LEAGUE_INITIAL_BALANCE } from './initial-balance.js';
 import { buildLeaguePeriod } from './league-period.js';
 import { leagueStatusAt } from './league-status.js';
 import type { LeagueStatus } from './league-status.js';
@@ -10,7 +11,10 @@ import {
   UserAlreadyInLeagueError,
 } from './leagues.errors.js';
 import { LeaguesRepository } from './leagues.repository.js';
-import type { StoredInvite, StoredLeague } from './leagues.repository.js';
+import type {
+  StoredInvite,
+  StoredParticipantLeague,
+} from './leagues.repository.js';
 
 /** Entrada da regra, já validada na borda. O criador vem do token, não do corpo. */
 export type CreateLeagueInput = {
@@ -25,10 +29,11 @@ export type CreateLeagueInput = {
 };
 
 /**
- * Liga como o domínio a entrega: o que está gravado mais a situação, que não é
- * coluna — é calculada a cada leitura a partir do período e do instante atual.
+ * Liga como o domínio a entrega para **um participante**: o que está gravado
+ * (liga e saldo dele ali) mais a situação, que não é coluna — é calculada a
+ * cada leitura a partir do período e do instante atual.
  */
-export type LeagueWithStatus = StoredLeague & {
+export type LeagueWithStatus = StoredParticipantLeague & {
   status: LeagueStatus;
 };
 
@@ -65,17 +70,21 @@ export type LeagueCandidate = {
 };
 
 /**
- * Participante da liga, como a lista da tela o mostra: só o nome.
+ * Participante da liga, como a lista da tela o mostra: o nome e o saldo.
  *
- * Nem e-mail (que não sai da aplicação) nem data de entrada — a decisão de
- * produto foi mostrar apenas quem está dentro. Quando o ranking existir, é aqui
- * que patrimônio e posição entram, e aí a data de entrada volta a fazer
- * diferença (quem entrou com a liga em andamento disputou menos tempo).
+ * O saldo de cada um é visível a todos os participantes, por decisão de
+ * produto: a liga é uma competição, e o ranking vai mostrar o mesmo número
+ * para todo mundo de qualquer forma. Nem e-mail (que não sai da aplicação) nem
+ * data de entrada — quando o ranking existir, é aqui que posição e patrimônio
+ * em cripto entram, e aí a data de entrada volta a fazer diferença (quem
+ * entrou com a liga em andamento disputou menos tempo).
  */
 export type LeagueParticipant = {
   /** Id da conta. Serve de chave estável na lista da tela. */
   id: string;
   name: string;
+  /** Dinheiro que a pessoa tem nesta liga, em texto decimal. */
+  cashBalance: string;
 };
 
 /**
@@ -94,15 +103,28 @@ export class LeaguesService {
     // Ligas dependem de contas (precisam saber quem existe), nunca o contrário:
     // o módulo de contas não conhece liga nenhuma.
     private readonly users: UsersService,
+    /**
+     * Saldo padrão de uma liga nova, em texto decimal, já conferido no boot
+     * (ver initial-balance.ts).
+     *
+     * Injetado, e não lido de `process.env` aqui: a regra passa a receber a
+     * configuração em vez de ir buscá-la, e o teste roda sem ambiente montado.
+     * Só a **criação** o usa — para quem aceita convite, a base vem da própria
+     * liga.
+     */
+    @Inject(LEAGUE_INITIAL_BALANCE) private readonly initialBalance: string,
   ) {}
 
   /**
-   * Cria a liga com quem criou já dentro dela.
+   * Cria a liga com quem criou já dentro dela, com o saldo inicial.
    *
-   * Duas decisões ficam aqui porque são regra, não transporte nem banco: o
+   * Três decisões ficam aqui porque são regra, não transporte nem banco: o
    * período é calculado pelo servidor a partir do dia escolhido (o cliente não
-   * dita instante), e quem cria entra como participante — sem papel e sem
-   * permissão, porque numa liga entre amigos não há o que autorizar.
+   * dita instante); quem cria entra como participante — sem papel e sem
+   * permissão, porque numa liga entre amigos não há o que autorizar; e a liga
+   * nasce com uma cópia do saldo padrão configurado, que daí em diante é a base
+   * dela. O cliente não manda o saldo, nem poderia: o payload de criação não
+   * tem esse campo (ver dto/create-league.dto.ts).
    */
   async create(input: CreateLeagueInput): Promise<LeagueWithStatus> {
     // Um único "agora" para a regra do período e para a situação: com duas
@@ -124,6 +146,10 @@ export class LeaguesService {
       startsAt: period.startsAt,
       endsAt: period.endsAt,
       creatorId: input.creatorId,
+      // Cópia, não referência: a liga guarda o valor que valia hoje. Mudar a
+      // configuração amanhã não mexe nesta liga — é o que mantém o ranking
+      // comparável depois (ver schema.prisma).
+      initialBalance: this.initialBalance,
     });
 
     return { ...league, status: leagueStatusAt(league, now) };
@@ -188,6 +214,7 @@ export class LeaguesService {
     return participants.map((participant) => ({
       id: participant.userId,
       name: participant.name,
+      cashBalance: participant.cashBalance,
     }));
   }
 
@@ -312,8 +339,10 @@ export class LeaguesService {
    * `where` do repositório: esta verificação é para a mensagem, aquela é a
    * garantia — entre ler e gravar, a liga pode encerrar.
    *
-   * Devolve a liga com a situação, para a tela confirmar em que liga a pessoa
-   * acabou de entrar sem precisar de outra requisição.
+   * Devolve a liga com a situação **e o saldo com que a pessoa entrou**, para a
+   * tela confirmar em que liga ela acabou de entrar sem precisar de outra
+   * requisição. Esse saldo é a base da própria liga, não a configuração do
+   * ambiente: quem entra depois começa igual a quem criou.
    */
   async acceptInvite(
     inviteId: string,
@@ -331,12 +360,12 @@ export class LeaguesService {
       throw new LeagueAlreadyFinishedError(invite.leagueId);
     }
 
-    const consumed = await this.leagues.consumeInvite(invite, userId, now);
+    const cashBalance = await this.leagues.consumeInvite(invite, userId, now);
 
-    // `false` = o convite não estava mais disponível no instante da escrita
+    // `null` = o convite não estava mais disponível no instante da escrita
     // (respondido em paralelo, ou a liga encerrou no meio). Mesma resposta do
     // convite inexistente: para quem está na tela, o convite não está mais lá.
-    if (!consumed) {
+    if (cashBalance === null) {
       throw new LeagueInviteNotFoundError(inviteId, userId);
     }
 
@@ -345,6 +374,7 @@ export class LeaguesService {
       name: invite.leagueName,
       startsAt: invite.startsAt,
       endsAt: invite.endsAt,
+      cashBalance,
       status: leagueStatusAt(invite, now),
     };
   }

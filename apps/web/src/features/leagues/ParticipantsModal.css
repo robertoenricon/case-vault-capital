@@ -79,6 +79,10 @@
 .participants__person {
   display: flex;
   align-items: center;
+  /* Nome à esquerda, saldo à direita: a coluna de valores fica alinhada e dá
+     para comparar os participantes de cima para baixo. */
+  justify-content: space-between;
+  gap: 12px;
   padding: 11px 2px;
 
   /* Separador entre pessoas, sem linha sobrando no fim da lista. */
@@ -92,6 +96,20 @@
   /* Nome de até 120 caracteres não pode esticar a caixa do modal. */
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/*
+ * Saldo do participante. `tabular-nums` é o que mantém a coluna alinhada entre
+ * as linhas, e `nowrap` impede "US$ 10.000,00" de quebrar ao lado de um nome
+ * comprido — nome encolhe, valor não.
+ */
+.participants__balance {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--gold);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Aviso da liga de uma pessoa só: orientação, não erro — por isso discreto. */

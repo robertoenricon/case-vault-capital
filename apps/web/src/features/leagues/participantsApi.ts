@@ -4,9 +4,9 @@ import { readApiErrorMessage } from '../../lib/apiError'
 /**
  * Participante de uma liga.
  *
- * Só id e nome — é o que a API devolve, por decisão de produto: a lista existe
- * para a pessoa ver **quem está disputando**, não para dar um perfil de cada
- * um. Nem e-mail (que não sai da API) nem data de entrada.
+ * Id, nome e saldo — é o que a API devolve, por decisão de produto: a lista
+ * existe para a pessoa ver **quem está disputando e como cada um está**. Nem
+ * e-mail (que não sai da API) nem data de entrada.
  *
  * A consequência é a mesma já assumida na lista de convite: dois cadastros com
  * o mesmo nome ficam indistinguíveis aqui.
@@ -14,6 +14,11 @@ import { readApiErrorMessage } from '../../lib/apiError'
 export type LeagueParticipant = {
   id: string
   name: string
+  /**
+   * Saldo desta pessoa nesta liga, em dólar. Texto, não `number`, pelo mesmo
+   * motivo do saldo da liga (ver leaguesApi.ts).
+   */
+  cashBalance: string
 }
 
 /** Erro já pronto para a tela: a mensagem é decidida aqui, e o componente só exibe. */
@@ -29,7 +34,9 @@ function isLeagueParticipant(value: unknown): value is LeagueParticipant {
     'id' in value &&
     typeof value.id === 'string' &&
     'name' in value &&
-    typeof value.name === 'string'
+    typeof value.name === 'string' &&
+    'cashBalance' in value &&
+    typeof value.cashBalance === 'string'
   )
 }
 

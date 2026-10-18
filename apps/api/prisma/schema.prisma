@@ -71,6 +71,24 @@ model League {
   startsAt DateTime @map("starts_at") @db.Timestamptz(6)
   endsAt   DateTime @map("ends_at") @db.Timestamptz(6)
 
+  /// Saldo fictício com que **todo** participante desta liga começa, em dólar.
+  ///
+  /// Mora na liga, e não no participante, porque "todos recebem o mesmo saldo"
+  /// é propriedade da competição: com a coluna aqui, é o schema que garante a
+  /// igualdade — quem entra no meio da liga recebe o mesmo valor de quem criou,
+  /// mesmo que o padrão do ambiente tenha mudado no intervalo.
+  ///
+  /// É uma cópia do valor configurado em `LEAGUE_INITIAL_BALANCE`, congelada no
+  /// instante da criação, e não uma leitura do ambiente a cada consulta: o
+  /// ranking calcula retorno sobre esta base, e uma base que muda reescreveria o
+  /// desempenho de ligas já encerradas.
+  ///
+  /// `Decimal` e nunca `Float`: dinheiro em ponto flutuante perde centavo na
+  /// soma. A escala 8 acompanha a precisão de quantidade de cripto — o débito de
+  /// uma ordem é quantidade × preço, e com escala 2 o Postgres arredondaria essa
+  /// conta em silêncio, antes de existir uma regra de arredondamento decidida.
+  initialBalance Decimal @map("initial_balance") @db.Decimal(20, 8)
+
   participants LeagueParticipant[]
   invites      LeagueInvite[]
 
@@ -101,6 +119,22 @@ model LeagueParticipant {
   user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  /// Dinheiro fictício que esta pessoa ainda tem **nesta** liga, em dólar.
+  ///
+  /// É aqui que a carteira por liga acontece: a mesma conta em três ligas tem
+  /// três linhas, cada uma com o próprio saldo. Uma coluna em `users` daria
+  /// carteira única e as ligas passariam a interferir uma na outra.
+  ///
+  /// Nasce igual a `leagues.initial_balance` e muda a cada ordem; a base de
+  /// comparação do ranking continua na liga. São dois dados diferentes —
+  /// "com quanto começou" e "quanto tem agora" —, e por isso duas colunas:
+  /// guardar só este perderia a base no dia em que o padrão do ambiente mudasse.
+  ///
+  /// Sem `@default`: o valor vem sempre da liga, decidido pela aplicação. Um
+  /// default no banco deixaria um INSERT que esqueceu o saldo passar calado,
+  /// com participante começando com zero.
+  cashBalance Decimal @map("cash_balance") @db.Decimal(20, 8)
 
   // Entrar duas vezes na mesma liga duplicaria a pessoa no ranking. Quem impede
   // é o índice único do banco, não uma verificação antes do INSERT: dois

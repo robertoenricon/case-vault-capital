@@ -40,6 +40,14 @@ type LeagueResponse = {
    * front evita que mudar o rótulo exija mexer na API.
    */
   status: LeagueStatus;
+  /**
+   * Saldo em dinheiro de **quem está chamando** nesta liga, em dólar.
+   *
+   * Sai como texto decimal (`"10000"`), nunca como número do JSON: `JSON.parse`
+   * devolveria um float binário no navegador e a tela passaria a exibir um valor
+   * que o backend não gravou. Quem formata para "US$ 10.000,00" é o front.
+   */
+  cashBalance: string;
 };
 
 /** Pessoa na lista de convite. Sem e-mail: ver users.repository.ts. */
@@ -51,12 +59,18 @@ type LeagueCandidateResponse = {
 };
 
 /**
- * Participante na lista da liga. Só nome, por decisão de produto — e sem
+ * Participante na lista da liga: nome e saldo, por decisão de produto — e sem
  * e-mail, pela mesma regra dos candidatos: e-mail de terceiro não sai daqui.
+ *
+ * O saldo **de outra pessoa** sai nesta rota de propósito: a liga é uma
+ * competição e todos acompanham o desempenho de todos. A autorização continua
+ * sendo a mesma — só participante da liga lê esta lista.
  */
 type LeagueParticipantResponse = {
   id: string;
   name: string;
+  /** Texto decimal, pelo mesmo motivo do saldo da liga. */
+  cashBalance: string;
 };
 
 /** Convite pendente, como a tela de quem foi convidado precisa dele. */
@@ -252,6 +266,7 @@ function toParticipantResponse(
   return {
     id: participant.id,
     name: participant.name,
+    cashBalance: participant.cashBalance,
   };
 }
 
@@ -301,5 +316,6 @@ function toLeagueResponse(league: LeagueWithStatus): LeagueResponse {
     startsAt: league.startsAt.toISOString(),
     endsAt: league.endsAt.toISOString(),
     status: league.status,
+    cashBalance: league.cashBalance,
   };
 }

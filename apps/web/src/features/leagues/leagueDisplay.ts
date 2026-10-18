@@ -29,3 +29,38 @@ export function formatPeriod(startsAt: string, endsAt: string): string {
 
   return `${format.format(new Date(startsAt))} até ${format.format(new Date(endsAt))}`
 }
+
+/**
+ * Formatador do saldo: dólar, com duas casas e separador de milhar em português
+ * — "US$ 10.000,00". Criado uma vez, fora da função: montar um `Intl` por
+ * chamada custaria caro numa lista de ligas que renderiza a cada atualização.
+ */
+const USD = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+/**
+ * Saldo em dólar, como a tela o mostra. Recebe o texto decimal que a API manda
+ * (`"10000"`, `"7500.25"`).
+ *
+ * O `Number` aqui é **só para formatar**, e este é o único lugar do front onde
+ * o saldo vira número: o valor que atravessa estado, props e tipos continua
+ * sendo o texto exato da API. Dinheiro em ponto flutuante perde centavo em
+ * conta — e o front não faz conta nenhuma com saldo, porque quem calcula é o
+ * backend. A alternativa (`Intl` aceita texto decimal direto) exigiria um
+ * `as` para calar o TypeScript, que pede um tipo literal; o engano de arredondar
+ * na vigésima casa decimal de um número exibido com duas é menor do que o de
+ * desligar o compilador.
+ */
+export function formatUsd(amount: string): string {
+  const value = Number(amount)
+
+  // Resposta fora do formato esperado não deve virar "US$ NaN" na tela. O texto
+  // cru é menos bonito e mais honesto: mostra que o valor chegou, mas estranho.
+  if (!Number.isFinite(value)) return amount
+
+  return USD.format(value)
+}

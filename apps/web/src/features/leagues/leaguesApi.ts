@@ -23,6 +23,15 @@ export type League = {
   startsAt: string
   endsAt: string
   status: LeagueStatus
+  /**
+   * Saldo fictício de **quem está logado** nesta liga, em dólar. Cada liga tem
+   * a sua carteira: a mesma conta em três ligas tem três saldos.
+   *
+   * Texto, e não `number`, porque é dinheiro: a API manda `"10000"` de
+   * propósito, e o valor atravessa a tela sem virar ponto flutuante. Quem
+   * formata é `formatUsd` (ver leagueDisplay.ts).
+   */
+  cashBalance: string
 }
 
 /** Erro já pronto para a tela: a mensagem é decidida aqui, e o componente só exibe. */
@@ -56,7 +65,11 @@ export function isLeague(value: unknown): value is League {
     'endsAt' in value &&
     typeof value.endsAt === 'string' &&
     'status' in value &&
-    isLeagueStatus(value.status)
+    isLeagueStatus(value.status) &&
+    // `string` e não `number`: se a API algum dia mandar o saldo como número,
+    // é melhor a tela recusar a resposta do que exibir um float arredondado.
+    'cashBalance' in value &&
+    typeof value.cashBalance === 'string'
   )
 }
 

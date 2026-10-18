@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import type { PublicUser } from '../users/users.repository.js';
 import { UsersService } from '../users/users.service.js';
+import { LEAGUE_INITIAL_BALANCE } from './initial-balance.js';
 import {
   LeagueAlreadyFinishedError,
   LeagueInviteAlreadySentError,
@@ -15,6 +16,7 @@ import type {
   StoredInvite,
   StoredLeague,
   StoredParticipant,
+  StoredParticipantLeague,
 } from './leagues.repository.js';
 import { LeaguesService } from './leagues.service.js';
 
@@ -37,6 +39,20 @@ const UTC = 0;
 const DIA_EM_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Saldo padrão do ambiente, do ponto de vista do service: ele o recebe pronto,
+ * já conferido (ver initial-balance.spec.ts). Texto decimal, nunca número.
+ */
+const SALDO_CONFIGURADO = '10000';
+
+/**
+ * Linha de liga no banco, como o fake a guarda: a liga mais a base dela.
+ *
+ * `initialBalance` não sai em `StoredLeague` (nenhuma consulta o devolve hoje),
+ * mas está na tabela — e é dele que o saldo de quem entra é copiado.
+ */
+type LinhaDeLiga = StoredLeague & { initialBalance: string };
+
+/**
  * Guarda o que o service mandou gravar e responde a listagem a partir disso.
  *
  * `seed` existe porque a criação recusa período no passado (e deve recusar):
@@ -50,7 +66,7 @@ const DIA_EM_MS = 24 * 60 * 60 * 1000;
 function repositoryFake() {
   const saved: NewLeague[] = [];
   const askedFor: string[] = [];
-  const rows: StoredLeague[] = [];
+  const rows: LinhaDeLiga[] = [];
 
   /**
    * Quem participa de cada liga, **na ordem de entrada** — a ordem do array é
@@ -60,6 +76,30 @@ function repositoryFake() {
 
   /** Nome de cada conta, como o join com `users` devolve no real. */
   const namesByUser = new Map<string, string>();
+
+  /**
+   * Saldo de cada participação — a coluna `cash_balance`, que é por liga e por
+   * pessoa. A chave composta é o que reproduz a carteira separada: a mesma
+   * conta em duas ligas tem duas entradas aqui.
+   */
+  const cashByParticipation = new Map<string, string>();
+
+  function chaveDaParticipacao(leagueId: string, userId: string): string {
+    return `${leagueId}:${userId}`;
+  }
+
+  /**
+   * Saldo da participação. Participação sem saldo não existe no real (a coluna
+   * é `NOT NULL`), então o valor ausente sai marcado em vez de vazio: teste que
+   * esqueceu de semear a liga precisa falhar de forma legível, não comparar
+   * `undefined` com número.
+   */
+  function saldoDaParticipacao(leagueId: string, userId: string): string {
+    return (
+      cashByParticipation.get(chaveDaParticipacao(leagueId, userId)) ??
+      `sem-saldo-semeado:${userId}`
+    );
+  }
 
   /** Convites pendentes, como as linhas da tabela. */
   const invites: { id: string; leagueId: string; invitedUserId: string }[] = [];
@@ -86,33 +126,82 @@ function repositoryFake() {
     askedFor,
     invites,
 
-    seed(league: StoredLeague): void {
+    seed(league: LinhaDeLiga): void {
       rows.push(league);
     },
 
-    create(league: NewLeague): Promise<StoredLeague> {
+    /**
+     * Grava a liga e a participação de quem criou, como o write aninhado do
+     * real: as duas linhas nascem juntas, e as duas nascem com o mesmo saldo.
+     */
+    create(league: NewLeague): Promise<StoredParticipantLeague> {
       saved.push(league);
 
-      const row: StoredLeague = {
+      const row: LinhaDeLiga = {
         id: ID_FIXO,
         name: league.name,
         startsAt: league.startsAt,
         endsAt: league.endsAt,
+        initialBalance: league.initialBalance,
       };
       rows.push(row);
 
-      return Promise.resolve(row);
+      participantsByLeague.set(row.id, [league.creatorId]);
+      cashByParticipation.set(
+        chaveDaParticipacao(row.id, league.creatorId),
+        league.initialBalance,
+      );
+
+      return Promise.resolve({ ...row, cashBalance: league.initialBalance });
     },
 
-    findByParticipant(userId: string): Promise<StoredLeague[]> {
+    /**
+     * Ligas da pessoa, cada uma com **o saldo dela ali** — o join filtrado do
+     * real. Devolver um saldo só, igual para todos, esconderia a carteira por
+     * liga, que é justamente o que a modelagem decidiu.
+     */
+    findByParticipant(userId: string): Promise<StoredParticipantLeague[]> {
       askedFor.push(userId);
 
-      return Promise.resolve([...rows]);
+      return Promise.resolve(
+        rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          startsAt: row.startsAt,
+          endsAt: row.endsAt,
+          cashBalance: saldoDaParticipacao(row.id, userId),
+        })),
+      );
     },
 
-    /** Quem participa de cada liga. Liga nunca semeada responde vazio, como o banco. */
+    /**
+     * Quem participa de cada liga. Liga nunca semeada responde vazio, como o
+     * banco.
+     *
+     * Cada participante semeado recebe o saldo da liga, como o real faz na
+     * entrada — a menos que o teste diga outro valor (`seedCash`), para simular
+     * quem já operou.
+     */
     seedParticipants(leagueId: string, userIds: string[]): void {
       participantsByLeague.set(leagueId, userIds);
+
+      const league = rows.find((row) => row.id === leagueId);
+      if (!league) return;
+
+      for (const userId of userIds) {
+        cashByParticipation.set(
+          chaveDaParticipacao(leagueId, userId),
+          league.initialBalance,
+        );
+      }
+    },
+
+    /** Saldo de uma participação específica, para simular quem já gastou. */
+    seedCash(leagueId: string, userId: string, cashBalance: string): void {
+      cashByParticipation.set(
+        chaveDaParticipacao(leagueId, userId),
+        cashBalance,
+      );
     },
 
     findParticipantUserIds(leagueId: string): Promise<string[]> {
@@ -140,12 +229,22 @@ function repositoryFake() {
         userIds.map((userId) => ({
           userId,
           name: namesByUser.get(userId) ?? `sem-nome-semeado:${userId}`,
+          cashBalance: saldoDaParticipacao(leagueId, userId),
         })),
       );
     },
 
+    /** Campo a campo, como o `select` do real: a base da liga não sai daqui. */
     findById(leagueId: string): Promise<StoredLeague | null> {
-      return Promise.resolve(rows.find((row) => row.id === leagueId) ?? null);
+      const league = rows.find((row) => row.id === leagueId);
+      if (!league) return Promise.resolve(null);
+
+      return Promise.resolve({
+        id: league.id,
+        name: league.name,
+        startsAt: league.startsAt,
+        endsAt: league.endsAt,
+      });
     },
 
     /** Convite já pendente no banco, como se outra pessoa o tivesse enviado. */
@@ -211,22 +310,26 @@ function repositoryFake() {
 
     /**
      * Reproduz a escrita condicional do real: só consome o convite se ele ainda
-     * é desta pessoa **e** a liga não encerrou. Devolver sempre `true` aqui
+     * é desta pessoa **e** a liga não encerrou. Devolver sempre o saldo aqui
      * esconderia a corrida que o service traduz em erro.
+     *
+     * O saldo de quem entra sai da **liga**, nunca da configuração do ambiente
+     * — é o contrato do real, e um fake que copiasse do ambiente faria o teste
+     * passar justamente no caso que a modelagem resolve.
      */
     consumeInvite(
       invite: { id: string; leagueId: string },
       userId: string,
       notFinishedAt: Date,
-    ): Promise<boolean> {
+    ): Promise<string | null> {
       const index = invites.findIndex(
         (row) => row.id === invite.id && row.invitedUserId === userId,
       );
-      if (index === -1) return Promise.resolve(false);
+      if (index === -1) return Promise.resolve(null);
 
       const league = rows.find((row) => row.id === invite.leagueId);
       if (!league || league.endsAt.getTime() < notFinishedAt.getTime()) {
-        return Promise.resolve(false);
+        return Promise.resolve(null);
       }
 
       invites.splice(index, 1);
@@ -234,8 +337,12 @@ function repositoryFake() {
         ...(participantsByLeague.get(invite.leagueId) ?? []),
         userId,
       ]);
+      cashByParticipation.set(
+        chaveDaParticipacao(invite.leagueId, userId),
+        league.initialBalance,
+      );
 
-      return Promise.resolve(true);
+      return Promise.resolve(league.initialBalance);
     },
 
     deleteInviteForUser(inviteId: string, userId: string): Promise<boolean> {
@@ -272,15 +379,22 @@ function usersServiceFake(users: PublicUser[]) {
   return state;
 }
 
+/**
+ * @param initialBalance saldo padrão "do ambiente". É parâmetro para um teste
+ * específico: o de que quem aceita convite recebe o saldo **da liga**, e não
+ * este — a diferença só aparece quando os dois valores discordam.
+ */
 async function buildService(
   repository: ReturnType<typeof repositoryFake>,
   users: ReturnType<typeof usersServiceFake> = usersServiceFake([]),
+  initialBalance: string = SALDO_CONFIGURADO,
 ) {
   const moduleRef = await Test.createTestingModule({
     providers: [
       LeaguesService,
       { provide: LeaguesRepository, useValue: repository },
       { provide: UsersService, useValue: users },
+      { provide: LEAGUE_INITIAL_BALANCE, useValue: initialBalance },
     ],
   }).compile();
 
@@ -296,18 +410,26 @@ function diaEmUtc(daysFromNow: number): string {
   return `${instant.getUTCFullYear()}-${month}-${day}`;
 }
 
-/** Linha de liga pronta, com período em dias relativos a agora. */
+/**
+ * Linha de liga pronta, com período em dias relativos a agora.
+ *
+ * @param initialBalance a base da liga. O padrão é o mesmo valor configurado,
+ * que é o caso normal; os testes passam outro valor quando precisam provar que
+ * a base da liga e a configuração do ambiente são dados diferentes.
+ */
 function ligaNoBanco(
   id: string,
   name: string,
   startDays: number,
   endDays: number,
-): StoredLeague {
+  initialBalance: string = SALDO_CONFIGURADO,
+): LinhaDeLiga {
   return {
     id,
     name,
     startsAt: new Date(Date.now() + startDays * DIA_EM_MS),
     endsAt: new Date(Date.now() + endDays * DIA_EM_MS),
+    initialBalance,
   };
 }
 
@@ -366,6 +488,41 @@ describe('LeaguesService.create', () => {
     // Criar não é começar: liga marcada para amanhã nasce agendada. A tela
     // depende disso para não oferecer operação numa liga que não começou.
     expect(created.status).toBe('scheduled');
+  });
+
+  it('grava a liga com uma cópia do saldo configurado', async () => {
+    const repository = repositoryFake();
+    const service = await buildService(repository);
+
+    await service.create({
+      name: 'Liga dos Amigos',
+      startDate: diaEmUtc(1),
+      endDate: diaEmUtc(8),
+      timeZoneOffsetMinutes: UTC,
+      creatorId: CRIADOR,
+    });
+
+    // A liga guarda o valor que valia no dia em que nasceu. É o que mantém o
+    // ranking comparável se a configuração mudar depois — e é por isso que o
+    // valor é copiado, não consultado no ambiente a cada leitura.
+    expect(repository.saved[0]?.initialBalance).toBe(SALDO_CONFIGURADO);
+  });
+
+  it('devolve quem criou já com o saldo inicial', async () => {
+    const repository = repositoryFake();
+    const service = await buildService(repository);
+
+    const created = await service.create({
+      name: 'Liga dos Amigos',
+      startDate: diaEmUtc(1),
+      endDate: diaEmUtc(8),
+      timeZoneOffsetMinutes: UTC,
+      creatorId: CRIADOR,
+    });
+
+    // Texto decimal, não número: é assim que o valor atravessa até a tela sem
+    // passar por ponto flutuante.
+    expect(created.cashBalance).toBe(SALDO_CONFIGURADO);
   });
 
   it('não grava nada quando o período é inválido', async () => {
@@ -468,6 +625,40 @@ describe('LeaguesService.listForParticipant', () => {
     // Vazio é resposta normal, não erro: a tela tem estado próprio para isso.
     await expect(service.listForParticipant(CRIADOR)).resolves.toEqual([]);
   });
+
+  it('devolve o saldo que a pessoa tem em cada liga', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco('liga-a', 'Liga A', -1, 5));
+    repository.seed(ligaNoBanco('liga-b', 'Liga B', -1, 5));
+    repository.seedParticipants('liga-a', [CRIADOR]);
+    repository.seedParticipants('liga-b', [CRIADOR]);
+    // A mesma pessoa já operou na Liga A e não tocou na Liga B.
+    repository.seedCash('liga-a', CRIADOR, '7500.25');
+
+    const service = await buildService(repository);
+    const leagues = await service.listForParticipant(CRIADOR);
+
+    // Carteira por liga, que é a decisão sob teste: um saldo só, repetido nas
+    // duas, significaria carteira única e as ligas interferindo uma na outra.
+    const saldos = new Map(leagues.map((l) => [l.name, l.cashBalance]));
+    expect(saldos.get('Liga A')).toBe('7500.25');
+    expect(saldos.get('Liga B')).toBe(SALDO_CONFIGURADO);
+  });
+
+  it('devolve o saldo de quem pediu, não o de outro participante', async () => {
+    const BRUNO = 'id-do-bruno';
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco('liga-a', 'Liga A', -1, 5));
+    repository.seedParticipants('liga-a', [CRIADOR, BRUNO]);
+    repository.seedCash('liga-a', BRUNO, '1');
+
+    const service = await buildService(repository);
+    const leagues = await service.listForParticipant(CRIADOR);
+
+    // O saldo da lista de ligas é sempre o de quem está chamando: é dado da
+    // participação dela, não da liga.
+    expect(leagues[0]?.cashBalance).toBe(SALDO_CONFIGURADO);
+  });
 });
 
 describe('LeaguesService.listParticipants', () => {
@@ -525,6 +716,24 @@ describe('LeaguesService.listParticipants', () => {
     await expect(
       service.listParticipants('id-de-liga-que-nao-existe', CRIADOR),
     ).rejects.toThrow(NotALeagueParticipantError);
+  });
+
+  it('devolve o saldo de cada participante', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', -1, 5));
+    repository.seedParticipants(LIGA, [CRIADOR, BRUNO]);
+    repository.seedUserName(CRIADOR, 'Ana Prado');
+    repository.seedUserName(BRUNO, 'Bruno Lima');
+    repository.seedCash(LIGA, BRUNO, '8200.10');
+
+    const service = await buildService(repository);
+    const participants = await service.listParticipants(LIGA, CRIADOR);
+
+    // Decisão de produto: numa competição, todos acompanham o saldo de todos.
+    // A autorização continua sendo a mesma — só quem participa lê esta lista.
+    const saldos = new Map(participants.map((p) => [p.name, p.cashBalance]));
+    expect(saldos.get('Ana Prado')).toBe(SALDO_CONFIGURADO);
+    expect(saldos.get('Bruno Lima')).toBe('8200.10');
   });
 
   it('não consulta a base de usuários', async () => {
@@ -792,6 +1001,25 @@ describe('LeaguesService.acceptInvite', () => {
     await expect(
       repository.findParticipantUserIds(LIGA),
     ).resolves.toContain(CONVIDADO);
+  });
+
+  it('entra com o saldo da liga, não com o configurado agora no ambiente', async () => {
+    const repository = repositoryFake();
+    // A liga nasceu quando o padrão era 10.000 e guardou esse valor.
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', -1, 5, '10000'));
+    repository.seedParticipants(LIGA, [CRIADOR]);
+    repository.seedInvite('convite-1', LIGA, CONVIDADO);
+
+    // E o ambiente hoje diz outra coisa.
+    const service = await buildService(repository, undefined, '50000');
+
+    const league = await service.acceptInvite('convite-1', CONVIDADO);
+
+    // É a decisão de modelagem inteira em um teste: todos os participantes de
+    // uma liga começam com o mesmo valor, inclusive quem entra depois. Se o
+    // saldo viesse do ambiente, quem aceitou hoje começaria com cinco vezes
+    // mais dinheiro que quem criou a liga ontem — e o ranking viraria piada.
+    expect(league.cashBalance).toBe('10000');
   });
 
   it('aceita convite de liga que já começou', async () => {

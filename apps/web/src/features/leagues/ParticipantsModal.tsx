@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
+import { formatUsd } from './leagueDisplay'
 import type { League } from './leaguesApi'
 import { useLeagueParticipants } from './useLeagueParticipants'
 import '../auth/authForm.css'
@@ -13,11 +14,13 @@ type ParticipantsModalProps = {
 }
 
 /**
- * Modal de participantes: quem está disputando a liga, na ordem em que entrou.
+ * Modal de participantes: quem está disputando a liga, na ordem em que entrou,
+ * com o saldo de cada um.
  *
- * Só o nome de cada um, por decisão de produto. A ordem vem do backend —
- * primeiro quem criou a liga, depois quem aceitou convite — e a tela não
- * reordena nada.
+ * Nome e saldo, por decisão de produto: numa competição, todos acompanham todos.
+ * A ordem vem do backend — primeiro quem criou a liga, depois quem aceitou
+ * convite — e a tela não reordena nada. **Nem ordena por saldo**: quando o
+ * ranking existir, quem decide a posição é o backend, com a métrica dele.
  *
  * Mesmo `<dialog>` nativo dos outros dois modais: foco preso, Esc e fundo
  * inerte vêm do navegador.
@@ -87,6 +90,11 @@ export function ParticipantsModal({
             // `key` com o id da conta, nunca o índice.
             <li className="participants__person" key={participant.id}>
               <span className="participants__name">{participant.name}</span>
+              {/* O saldo de cada um fica visível a todos os participantes: a
+                  liga é uma competição, e acompanhar o adversário é o ponto. */}
+              <span className="participants__balance">
+                {formatUsd(participant.cashBalance)}
+              </span>
             </li>
           ))}
         </ul>

@@ -84,6 +84,34 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Saldo da liga: rótulo pequeno e valor destacado, um ao lado do outro. O valor
+ * é a informação que a pessoa procura; o rótulo existe para dizer que o saldo é
+ * daquela liga e não da conta.
+ *
+ * `tabular-nums` como no período: numa lista de ligas, dígitos de larguras
+ * diferentes fazem os valores desalinharem de um card para o outro.
+ */
+.league-card__balance {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.league-card__balance-label {
+  font-size: 13px;
+  color: var(--cream-soft);
+}
+
+.league-card__balance-value {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--gold);
+}
+
 /* Situação e ação, à direita do card. */
 .league-card__actions {
   display: flex;
