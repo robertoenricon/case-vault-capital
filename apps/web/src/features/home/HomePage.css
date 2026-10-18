@@ -1,0 +1,56 @@
+/*
+ * Moldura da tela de quem está logado. Mesma geometria do card de login, para a
+ * transição não parecer outro app. O botão vem de authForm.css.
+ */
+
+.home {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.home__card {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 32px;
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dark);
+
+  @media (max-width: 480px) {
+    padding: 24px 20px;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
+.home__brand {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.home__title {
+  font-size: 28px;
+  letter-spacing: -0.4px;
+  margin: 0;
+}
+
+.home__text {
+  font-size: 15px;
+}
+
+/* Aviso de que falta produto aqui: presente, mas sem competir com o resto. */
+.home__text--muted {
+  color: var(--cream-soft);
+  margin-bottom: 6px;
+}
