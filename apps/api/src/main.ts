@@ -1,9 +1,14 @@
-import { ValidationPipe } from '@nestjs/common';
+import 'reflect-metadata';
+import type {
+  IncomingMessage,
+  RequestListener,
+  ServerResponse,
+} from 'node:http';
+import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module.js';
 import { DomainExceptionFilter } from './common/filters/domain-exception.filter.js';
 
-async function bootstrap() {
+async function bootstrap(): Promise<INestApplication> {
   // Falha no boot, e não na primeira requisição do front: sem a origem
   // autorizada o CORS ficaria permissivo por omissão, que é o pior default.
   const webOrigin = process.env.WEB_ORIGIN;
@@ -13,7 +18,10 @@ async function bootstrap() {
     );
   }
 
-  const app = await NestFactory.create(AppModule);
+  // JWT e saldo são validados ao importar os módulos. Carregá-los durante a
+  // requisição permite registrar também essas falhas nos logs da função.
+  const { AppModule } = await import('./app.module.js');
+  const app = await NestFactory.create(AppModule, { abortOnError: false });
   app.enableCors({ origin: webOrigin });
 
   app.useGlobalPipes(
@@ -30,13 +38,71 @@ async function bootstrap() {
   // padrão do Nest, que responde 500 sem expor stack trace.
   app.useGlobalFilters(new DomainExceptionFilter());
 
-  // A Vercel intercepta listen() sem executar seu callback. Esperar essa
-  // promise aqui travaria a importação do módulo (await bootstrap abaixo).
-  // Inicialize antes para garantir que o banco e as rotas já estejam prontos.
-  await app.init();
-  void app.listen(process.env.PORT ?? 3000).catch((error: unknown) => {
-    console.error('Falha ao iniciar o servidor HTTP:', error);
-    process.exitCode = 1;
-  });
+  try {
+    await app.init();
+    return app;
+  } catch (error) {
+    await app.close().catch(() => {});
+    throw error;
+  }
 }
-await bootstrap();
+
+// Requisições simultâneas compartilham a mesma inicialização. Uma falha de
+// conexão permite nova tentativa, sem deixar uma promise rejeitada no cache.
+let application: Promise<INestApplication> | undefined;
+
+function getApplication(): Promise<INestApplication> {
+  application ??= bootstrap().catch((error: unknown) => {
+    application = undefined;
+    throw error;
+  });
+  return application;
+}
+
+function logStartupError(error: unknown): void {
+  let message =
+    error instanceof Error ? (error.stack ?? error.message) : String(error);
+  const secrets = [process.env.JWT_SECRET, process.env.DATABASE_URL];
+  try {
+    const password = new URL(process.env.DATABASE_URL ?? '').password;
+    secrets.push(password, decodeURIComponent(password));
+  } catch {
+    // Uma URL inválida também precisa ser diagnosticada sem expor seu valor.
+  }
+  for (const secret of secrets) {
+    if (secret) message = message.replaceAll(secret, '[REDACTED]');
+  }
+  console.error('Falha ao inicializar a API:', message);
+}
+
+// A Vercel recebe um handler explícito: importar o arquivo não depende do banco
+// nem da captura de listen(). A inicialização ocorre dentro da requisição.
+export default async function handler(
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  try {
+    const app = await getApplication();
+    const listener: RequestListener = app.getHttpAdapter().getInstance();
+    listener(request, response);
+  } catch (error) {
+    logStartupError(error);
+    response.statusCode = 503;
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+    response.end(
+      JSON.stringify({
+        statusCode: 503,
+        message: 'API indisponível. Tente novamente em instantes.',
+      }),
+    );
+  }
+}
+
+if (!process.env.VERCEL) {
+  void getApplication()
+    .then((app) => app.listen(process.env.PORT ?? 3000))
+    .catch((error: unknown) => {
+      logStartupError(error);
+      process.exitCode = 1;
+    });
+}
