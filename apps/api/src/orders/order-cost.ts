@@ -42,17 +42,24 @@ const DECIMAL_PLACES = 8;
 const Money = Prisma.Decimal.clone({ precision: 50 });
 
 /**
- * Custo total da ordem, em texto decimal.
+ * Quanto vale a ordem, em texto decimal: o que sai do saldo numa compra e o
+ * que entra nele numa venda.
+ *
+ * Uma função para os dois lados porque a conta é a mesma — `quantidade ×
+ * preço`. O que muda é o sinal da operação no saldo, e isso é decisão do
+ * service, não desta aritmética.
  *
  * **Trunca** na oitava casa — decisão de produto registrada. Não é
  * arredondamento aritmético: o que passa da oitava casa é descartado,
  * independentemente do que venha depois. `0.12345678 × 82115.12` dá
  * `10137.6683045136` e vira `10137.66830451`.
  *
- * Truncar é a regra mais simples de explicar e, na compra, sempre cobra de
- * menos — nunca a mais. Vale registrar para quando a venda existir: truncar o
- * valor recebido numa venda cai para o outro lado, creditando de menos. O viés
- * não é "a favor de quem opera", é "a favor do número menor".
+ * Truncar vale **nos dois lados**, por decisão consciente: é uma regra só no
+ * produto inteiro, fácil de explicar e de testar. O preço assumido é que o
+ * viés fica sempre do lado do número menor — cobra de menos na compra e
+ * credita de menos na venda, nunca "a favor de quem opera". A diferença é de
+ * até um satoshi de dólar por ordem; a alternativa seria arredondar para lados
+ * diferentes dependendo da operação.
  *
  * Texto na entrada e na saída, nunca `number`: é o mesmo valor que vai debitar
  * o saldo e ser gravado na ordem, e um `toNumber()` no meio do caminho jogaria
@@ -83,17 +90,25 @@ export function isPositiveAmount(value: string): boolean {
 }
 
 /**
- * O saldo cobre esse custo?
+ * O que a pessoa tem cobre o que a ordem precisa?
+ *
+ * Serve às duas perguntas do produto, porque são a mesma comparação: na
+ * compra, se o **saldo** cobre o custo; na venda, se a **posição** cobre a
+ * quantidade vendida. Duas funções idênticas com nomes diferentes seriam a
+ * mesma regra escrita duas vezes, e um dia só uma delas seria corrigida.
  *
  * Comparação decimal exata, nunca `Number(a) >= Number(b)`: é ela que autoriza
- * gastar dinheiro, e é o último lugar do sistema onde um erro de ponto
- * flutuante poderia deixar passar uma compra sem saldo.
+ * gastar dinheiro e entregar cripto, e é o último lugar do sistema onde um
+ * erro de ponto flutuante poderia deixar passar uma ordem a descoberto.
  *
  * Esta é a verificação **amigável**, feita para a pessoa receber uma mensagem
- * clara. Quem de fato impede o saldo negativo é a escrita condicional no banco
- * (ver orders.repository.ts) — entre esta conferência e o commit, outra ordem
- * da mesma pessoa pode ter gasto o dinheiro.
+ * clara. Quem de fato impede saldo e posição negativos é a escrita condicional
+ * no banco (ver orders.repository.ts) — entre esta conferência e o commit,
+ * outra ordem da mesma pessoa pode ter consumido o que havia.
+ *
+ * @param available o que existe hoje: saldo em dólar ou quantidade em carteira.
+ * @param required o que a ordem consome: custo em dólar ou quantidade vendida.
  */
-export function balanceCovers(balance: string, cost: string): boolean {
-  return new Money(balance).gte(cost);
+export function covers(available: string, required: string): boolean {
+  return new Money(available).gte(required);
 }

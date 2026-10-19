@@ -92,3 +92,23 @@ export function previewTotalUsd(quantity: string, price: string): string {
 export function isAboveBalance(totalUsd: string, balanceUsd: string): boolean {
   return Number(totalUsd) > Number(balanceUsd)
 }
+
+/**
+ * A quantidade digitada passa do que a pessoa tem em carteira?
+ *
+ * O espelho de `isAboveBalance` na venda, com a mesma postura: **avisa, não
+ * bloqueia**. Quem recusa de verdade é o backend, que compara em decimal exato
+ * contra a carteira no instante da execução — a desta tela pode ter mudado
+ * desde que a lista foi carregada.
+ *
+ * Mesma ressalva de float das funções acima, e ela é mais branda aqui: os dois
+ * lados são textos decimais de até 8 casas lidos direto da API, sem nenhuma
+ * multiplicação no meio. O desvio precisaria de mais dígitos significativos do
+ * que uma quantidade de bitcoin tem para mudar a comparação.
+ *
+ * @param quantity texto decimal já validado por `parseQuantity`.
+ * @param position quantidade em carteira, texto decimal vindo da API.
+ */
+export function isAbovePosition(quantity: string, position: string): boolean {
+  return Number(quantity) > Number(position)
+}

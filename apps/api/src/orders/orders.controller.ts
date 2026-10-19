@@ -11,6 +11,7 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { MalformedLeagueIdError } from '../leagues/leagues.errors.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
+import type { OrderSide } from './order-side.js';
 import { OrdersService } from './orders.service.js';
 import type { ExecutedOrder } from './orders.service.js';
 
@@ -27,6 +28,8 @@ import type { ExecutedOrder } from './orders.service.js';
  */
 type OrderResponse = {
   id: string;
+  /** `buy` ou `sell`: é o que diz se o dinheiro saiu do saldo ou entrou nele. */
+  side: OrderSide;
   symbol: string;
   /** Textos decimais, como todo valor monetário da API. Quem formata é o front. */
   quantity: string;
@@ -64,23 +67,29 @@ export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
 
   /**
-   * Compra cripto. 201 (default do Nest para POST): a ordem é um recurso novo,
-   * e o registro dela é permanente.
+   * Registra uma ordem de compra ou de venda. 201 (default do Nest para
+   * POST): a ordem é um recurso novo, e o registro dela é permanente.
    *
-   * Saldo insuficiente vira 409, liga fora da janela vira 400, não participar
-   * vira 403 e cotação indisponível vira 503 — o controller não conhece
-   * nenhum desses status.
+   * **Uma rota para os dois lados**, com `side` no corpo, em vez de
+   * `/orders/buy` e `/orders/sell`: o recurso criado é o mesmo — uma linha em
+   * `orders` — e o lado é atributo dele, inclusive no banco. Duas rotas
+   * duplicariam autorização, validação e resposta para mudar um campo.
+   *
+   * Saldo ou carteira insuficientes viram 409, liga fora da janela vira 400,
+   * não participar vira 403 e cotação indisponível vira 503 — o controller não
+   * conhece nenhum desses status.
    */
   @Post()
-  async buy(
+  async place(
     @Param('leagueId', PARSE_LEAGUE_ID) leagueId: string,
     @Body() body: CreateOrderDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OrderResponse> {
-    const order = await this.orders.buy({
+    const order = await this.orders.place({
       leagueId,
       // A identidade vem do token, nunca do corpo da requisição.
       userId: user.id,
+      side: body.side,
       symbol: body.symbol,
       quantity: body.quantity,
     });
@@ -93,6 +102,7 @@ export class OrdersController {
 function toOrderResponse(order: ExecutedOrder): OrderResponse {
   return {
     id: order.id,
+    side: order.side,
     symbol: order.symbol,
     quantity: order.quantity,
     unitPrice: order.unitPrice,

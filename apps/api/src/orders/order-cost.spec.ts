@@ -1,7 +1,8 @@
-import { balanceCovers, orderCost } from './order-cost.js';
+import { covers, orderCost } from './order-cost.js';
 
 /**
- * A conta mais delicada do produto: quanto sai do saldo numa ordem.
+ * A conta mais delicada do produto: quanto sai do saldo numa compra e quanto
+ * entra nele numa venda.
  *
  * O que está sob teste é a **precisão** e a **regra de truncamento**, não o
  * caminho feliz: um erro aqui não quebra nada visivelmente — só grava o valor
@@ -48,29 +49,50 @@ describe('orderCost', () => {
   });
 });
 
-describe('balanceCovers', () => {
+describe('covers', () => {
   it('aceita quando o saldo é maior', () => {
-    expect(balanceCovers('10000', '8211.512')).toBe(true);
+    expect(covers('10000', '8211.512')).toBe(true);
   });
 
   it('aceita quando o saldo é exatamente o custo', () => {
     // Gastar tudo é uma operação legítima: o saldo vai a zero, não a negativo.
-    expect(balanceCovers('8211.512', '8211.512')).toBe(true);
+    expect(covers('8211.512', '8211.512')).toBe(true);
   });
 
   it('recusa quando falta um satoshi', () => {
     // A borda que importa. Com `Number`, os dois valores poderiam ser lidos
     // como iguais e a compra passaria.
-    expect(balanceCovers('8211.51199999', '8211.512')).toBe(false);
+    expect(covers('8211.51199999', '8211.512')).toBe(false);
   });
 
   it('recusa com saldo zerado', () => {
-    expect(balanceCovers('0', '0.00000001')).toBe(false);
+    expect(covers('0', '0.00000001')).toBe(false);
   });
 
   it('compara sem erro de ponto flutuante', () => {
     // 0.1 + 0.2 = 0.30000000000000004 em float; em decimal, 0.3 exato. Um saldo
     // de 0.3 cobre um custo de 0.3.
-    expect(balanceCovers('0.3', '0.3')).toBe(true);
+    expect(covers('0.3', '0.3')).toBe(true);
+  });
+
+  /*
+   * A mesma função responde pela carteira na venda. Os casos abaixo são os
+   * mesmos de cima com outro significado — e é esse o ponto: "ter o
+   * suficiente" é uma comparação só no produto.
+   */
+
+  it('aceita vender a posição inteira', () => {
+    // Zerar a carteira é legítimo, como zerar o saldo.
+    expect(covers('0.0623', '0.0623')).toBe(true);
+  });
+
+  it('recusa vender um satoshi a mais do que se tem', () => {
+    // A borda que impede a posição negativa — venda a descoberto não existe.
+    expect(covers('0.0623', '0.06230001')).toBe(false);
+  });
+
+  it('recusa qualquer venda de quem nunca comprou', () => {
+    // Sem posição, o repositório devolve "0": aqui nada passa.
+    expect(covers('0', '0.00000001')).toBe(false);
   });
 });

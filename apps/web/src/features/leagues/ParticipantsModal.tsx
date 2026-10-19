@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { formatBtc, formatUsd } from '../../lib/money'
-import { BuyBitcoinForm } from '../orders/BuyBitcoinForm'
+import { TradeBitcoinPanel } from '../orders/TradeBitcoinPanel'
 import { BitcoinTicker } from '../quotes/BitcoinTicker'
 import { useBitcoinQuote } from '../quotes/useBitcoinQuote'
 import type { League } from './leaguesApi'
@@ -14,7 +14,16 @@ type ParticipantsModalProps = {
   /** Token da sessão: a rota de participantes é protegida e exige participar da liga. */
   accessToken: string
   /**
-   * Avisa que uma compra aconteceu, para o dashboard reler as ligas: o saldo
+   * Id da conta de quem está olhando, para achar a própria linha na lista.
+   *
+   * É dali que sai a carteira usada pelo formulário de venda. A alternativa
+   * era a API devolver a posição de quem pergunta também na listagem de ligas,
+   * ao lado do saldo; ela já traz essa posição na lista de participantes, e um
+   * campo a mais em outra rota seria o mesmo dado lido em dois lugares.
+   */
+  currentUserId: string
+  /**
+   * Avisa que uma ordem aconteceu, para o dashboard reler as ligas: o saldo
    * do card atrás do modal mudou.
    */
   onOrderExecuted: () => void
@@ -23,9 +32,10 @@ type ParticipantsModalProps = {
 
 /**
  * Modal de participantes: quem está disputando a liga, na ordem em que entrou,
- * com o saldo de cada um.
+ * com o bitcoin e o saldo de cada um — e o lugar de onde se opera.
  *
- * Nome e saldo, por decisão de produto: numa competição, todos acompanham todos.
+ * Nome, carteira e saldo, por decisão de produto: numa competição, todos
+ * acompanham todos.
  * A ordem vem do backend — primeiro quem criou a liga, depois quem aceitou
  * convite — e a tela não reordena nada. **Nem ordena por saldo**: quando o
  * ranking existir, quem decide a posição é o backend, com a métrica dele.
@@ -36,29 +46,47 @@ type ParticipantsModalProps = {
 export function ParticipantsModal({
   league,
   accessToken,
+  currentUserId,
   onOrderExecuted,
   onClose,
 }: ParticipantsModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   /*
-   * Saldo depois da última compra feita **neste modal**.
+   * Saldo e carteira depois da última ordem feita **neste modal**.
    *
-   * Fica separado de `league.cashBalance` em vez de copiá-lo para o estado: o
-   * valor da prop continua sendo a verdade até existir algo mais novo, e só
-   * então este assume. Copiar a prop na montagem criaria estado derivado
-   * duplicado, que desincroniza.
+   * Ficam separados das fontes originais em vez de copiá-las para o estado: a
+   * prop e a lista continuam sendo a verdade até existir algo mais novo, e só
+   * então estes assumem. Copiar na montagem criaria estado derivado duplicado,
+   * que desincroniza.
    *
-   * O número vem da resposta da compra — é o saldo que o Postgres gravou. A
-   * tela não subtrai nada por conta própria.
+   * Os números vêm da resposta da ordem — são os que o Postgres gravou. A tela
+   * não soma nem subtrai nada por conta própria. A lista é relida logo em
+   * seguida e confirma os mesmos valores; estes existem para a confirmação ser
+   * imediata, sem esperar a volta da requisição.
    */
   const [balanceAfterOrder, setBalanceAfterOrder] = useState<string>()
+  const [positionAfterOrder, setPositionAfterOrder] = useState<string>()
+
   const currentBalance = balanceAfterOrder ?? league.cashBalance
 
   const { participants, loading, error, refresh } = useLeagueParticipants(
     league.id,
     accessToken,
   )
+
+  /*
+   * Quanto bitcoin quem está olhando tem nesta liga.
+   *
+   * Sai da própria lista que o modal já carregou, achando a linha de quem
+   * pergunta — não existe segunda requisição para isso. Fica `undefined`
+   * enquanto a lista carrega ou se ela falhou, e o formulário de venda trata
+   * esse caso: carteira desconhecida não é carteira vazia.
+   */
+  const currentPosition =
+    positionAfterOrder ??
+    participants?.find((participant) => participant.id === currentUserId)
+      ?.bitcoinQuantity
 
   /*
    * A cotação é buscada **aqui**, e não dentro do ticker, porque dois blocos
@@ -196,21 +224,23 @@ export function ParticipantsModal({
           onRetry={bitcoin.refresh}
         />
 
-        {/* O saldo é o de **quem está chamando** nesta liga (ver
-            leagues.controller.ts) — exatamente o saldo contra o qual a compra
-            é comparada.
+        {/* Saldo e carteira são os de **quem está chamando** nesta liga (ver
+            leagues.controller.ts) — exatamente os números contra os quais o
+            backend compara a ordem.
 
-            A compra muda três coisas, e cada uma é relida de onde ela mora: o
-            saldo vem na resposta da ordem, a lista de participantes é relida
-            da API (o saldo de todo mundo aparece ali) e o dashboard relê as
-            ligas para o card atrás do modal. Nada é recalculado na tela. */}
-        <BuyBitcoinForm
+            Uma ordem muda três coisas, e cada uma é relida de onde ela mora:
+            saldo e carteira vêm na resposta, a lista de participantes é relida
+            da API (os números de todo mundo aparecem ali) e o dashboard relê
+            as ligas para o card atrás do modal. Nada é recalculado na tela. */}
+        <TradeBitcoinPanel
           leagueId={league.id}
           accessToken={accessToken}
           price={bitcoin.quote?.price}
           balance={currentBalance}
+          position={currentPosition}
           onExecuted={(order) => {
             setBalanceAfterOrder(order.cashBalance)
+            setPositionAfterOrder(order.positionQuantity)
             refresh()
             onOrderExecuted()
           }}

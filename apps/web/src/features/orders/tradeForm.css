@@ -1,0 +1,147 @@
+/*
+ * Bloco de operação: comprar e vender bitcoin.
+ *
+ * Nasceu como `BuyBitcoinForm.css`, quando só havia compra. Virou `trade`
+ * quando a venda chegou: manter o prefixo `buy__` em classes que os dois lados
+ * usam seria um nome mentindo sobre o que a regra faz.
+ *
+ * O campo em si vem de authForm.css (`.field__input`), como em todos os
+ * formulários do projeto; aqui ficam a moldura, as abas, o total e os avisos.
+ *
+ * Sem margem externa e sem largura fixa: quem posiciona é o container, igual
+ * ao ticker de cotação logo acima.
+ */
+
+.trade {
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  background: var(--surface-warm);
+  /* As abas encostam na borda de cima; o `hidden` corta o canto delas. */
+  overflow: hidden;
+}
+
+/*
+ * As duas abas. Grade de colunas iguais, e não `flex`, para que "Comprar" e
+ * "Vender" tenham a mesma área clicável mesmo tendo larguras de texto
+ * diferentes — a aba menor não pode ser mais difícil de acertar.
+ */
+.trade__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--edge);
+}
+
+.trade__tab {
+  padding: 12px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cream-soft);
+  background: transparent;
+  border: none;
+  /* Reserva a faixa do indicador em todas as abas: sem isso o texto pula
+     dois pixels quando a seleção muda. */
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.trade__tab:hover {
+  color: var(--cream);
+}
+
+/*
+ * Aba selecionada. O estado real é o `aria-selected`, e o seletor vem dele em
+ * vez de uma classe paralela: assim não há como o que se vê divergir do que o
+ * leitor de tela anuncia.
+ */
+.trade__tab[aria-selected='true'] {
+  color: var(--cream);
+  background: var(--surface-overlay);
+  border-bottom-color: var(--gold);
+}
+
+.trade__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 14px;
+}
+
+/*
+ * `tabular-nums` para o número não "dançar" enquanto as setinhas andam: sem
+ * isso cada dígito tem largura própria e o campo treme a cada passo.
+ */
+.trade__quantity {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A resposta à digitação. Linha própria, separada do campo, porque é o que a
+ * pessoa olha enquanto mexe nas setas.
+ */
+.trade__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--edge);
+}
+
+.trade__total-label {
+  font-size: 13px;
+  color: var(--cream-soft);
+}
+
+.trade__total-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--gold);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Total acima do limite — do saldo na compra, da carteira na venda. Muda de
+ * cor, não some e não trava o campo: por decisão de produto a pessoa pode
+ * digitar o que quiser e ver quanto daria; quem recusa a ordem é o backend.
+ */
+.trade__total-value--over {
+  color: var(--danger);
+}
+
+/*
+ * O aviso em texto, embaixo. Existe além da cor porque cor sozinha não informa
+ * quem não a distingue — e porque "passou do saldo" é mais útil do que vermelho.
+ */
+.trade__over {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--danger);
+}
+
+/*
+ * Botão de confirmar. Ocupa a largura toda: é a ação principal do bloco, e
+ * dentro de um modal estreito um botão curto à direita competiria com o
+ * "Fechar" do rodapé.
+ */
+.trade__submit {
+  width: 100%;
+}
+
+/*
+ * Confirmação da ordem. Verde não: o projeto não tem cor de sucesso própria, e
+ * o dourado já é a cor de valor em toda a tela. Fundo levemente destacado para
+ * o bloco não se confundir com o resto do formulário.
+ */
+.trade__done {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  color: var(--cream);
+  background: var(--surface-overlay);
+  border-radius: 8px;
+  border: 1px solid var(--edge);
+}

@@ -53,6 +53,41 @@ export class InsufficientBalanceError extends DomainError {
 }
 
 /**
+ * A carteira não tem a quantidade que a venda pede.
+ *
+ * É a forma que **venda a descoberto não existe** toma no código: decisão de
+ * produto registrada. Vender o que não se tem exigiria margem, limite de
+ * exposição e o que fazer quando o preço sobe com a liga aberta — regra que o
+ * MVP não resolve e, sem ela, dá para quebrar a liga vendendo infinito.
+ *
+ * `conflict` pelo mesmo motivo do saldo: o pedido está correto e seria aceito
+ * com outra carteira. O que falhou é o estado atual, não o payload.
+ *
+ * A mensagem traz a posição porque a tela mostra um número que pode ter
+ * mudado — outra ordem da mesma pessoa, ou simplesmente uma lista carregada
+ * há um tempo.
+ */
+export class InsufficientPositionError extends DomainError {
+  readonly kind = 'conflict' as const;
+  readonly publicMessage: string;
+
+  constructor(
+    participantId: string,
+    symbol: string,
+    position: string,
+    quantity: string,
+  ) {
+    super(
+      `Posição insuficiente em ${symbol} na participação ${participantId}: venda de ${quantity}, carteira ${position}`,
+    );
+    this.name = 'InsufficientPositionError';
+    // Valores crus (texto decimal), como em todo o resto da API. Quem formata
+    // para "0,05 BTC" é a tela.
+    this.publicMessage = `Você tem ${position} ${symbol} nesta liga e tentou vender ${quantity}.`;
+  }
+}
+
+/**
  * Quantidade que não dá para negociar: zero.
  *
  * O formato (número positivo, até 8 casas) é conferido no DTO; o "maior que

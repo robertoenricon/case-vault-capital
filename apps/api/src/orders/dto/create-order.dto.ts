@@ -1,8 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsString, Matches, MaxLength } from 'class-validator';
+import { IsIn, IsString, Matches, MaxLength } from 'class-validator';
+import { ORDER_SIDES } from '../order-side.js';
+import type { OrderSide } from '../order-side.js';
 
 /**
- * Contrato de entrada da ordem: **o quê** e **quanto**. Jamais por quanto.
+ * Contrato de entrada da ordem: **que lado**, **o quê** e **quanto**. Jamais
+ * por quanto.
  *
  * Não existe campo de preço, e isso é inquebrável do projeto: o preço é obtido
  * pelo backend no instante da execução. Aceitá-lo do cliente deixaria qualquer
@@ -43,6 +46,21 @@ function AsDecimalString(): PropertyDecorator {
 }
 
 export class CreateOrderDto {
+  /**
+   * Comprar ou vender. **Obrigatório, sem valor padrão** — e isso é
+   * deliberado: assumir "compra" quando o campo falta faria um pedido
+   * malformado virar uma operação com dinheiro, na direção que o servidor
+   * escolheu. Melhor recusar com 400.
+   *
+   * Normalizado para minúsculas, como o símbolo é para maiúsculas: "BUY" e
+   * "buy" não devem ser dois lados diferentes.
+   */
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsIn(ORDER_SIDES, { message: 'Informe se a ordem é de compra ou de venda.' })
+  side: OrderSide;
+
   /**
    * Código do ativo, como o produto o chama: `BTC`. Normalizado para maiúsculas
    * para que "btc" e "BTC" não virem dois ativos diferentes na tabela.
