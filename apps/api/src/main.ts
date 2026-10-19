@@ -30,6 +30,13 @@ async function bootstrap() {
   // padrão do Nest, que responde 500 sem expor stack trace.
   app.useGlobalFilters(new DomainExceptionFilter());
 
-  await app.listen(process.env.PORT ?? 3000);
+  // A Vercel intercepta listen() sem executar seu callback. Esperar essa
+  // promise aqui travaria a importação do módulo (await bootstrap abaixo).
+  // Inicialize antes para garantir que o banco e as rotas já estejam prontos.
+  await app.init();
+  void app.listen(process.env.PORT ?? 3000).catch((error: unknown) => {
+    console.error('Falha ao iniciar o servidor HTTP:', error);
+    process.exitCode = 1;
+  });
 }
 await bootstrap();
