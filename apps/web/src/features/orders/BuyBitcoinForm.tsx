@@ -2,19 +2,27 @@ import { useState } from 'react'
 import { Field } from '../../components/Field'
 import { describedBy } from '../../components/describedBy'
 import { formatUsd } from '../../lib/money'
+import type { ExecutedOrder } from './buyOrderApi'
 import { isAboveBalance, parseQuantity, previewTotalUsd } from './quantity'
+import { useBuyBitcoin } from './useBuyBitcoin'
 import '../auth/authForm.css'
 import './BuyBitcoinForm.css'
 
 type BuyBitcoinFormProps = {
+  leagueId: string
+  accessToken: string
   /**
    * Preço atual do bitcoin, texto decimal. `undefined` enquanto a cotação
-   * carrega ou quando ela falhou — sem preço não existe total, e a tela diz
-   * isso em vez de mostrar zero.
+   * carrega ou quando ela falhou — sem preço não há total estimado.
+   *
+   * Note que a compra **não** depende deste valor: ele serve só à estimativa
+   * na tela. Quem busca o preço da ordem é o backend.
    */
   price?: string
   /** Saldo de quem está na tela, nesta liga. Texto decimal, como a API manda. */
   balance: string
+  /** Chamado depois de cada compra bem-sucedida, com a ordem executada. */
+  onExecuted: (order: ExecutedOrder) => void
 }
 
 /**
@@ -30,29 +38,51 @@ const ARROW_STEP = '0.0001'
 const QUANTITY_FIELD_ID = 'buy-bitcoin-quantity'
 
 /**
- * Quanto bitcoin comprar, e quanto isso custaria.
+ * Comprar bitcoin com o dinheiro fictício da liga.
  *
- * Por enquanto **só calcula**: não existe botão de comprar nem chamada à API.
- * É a primeira parte do fluxo de compra, e a conta aqui é uma estimativa de
- * tela — quem decide o preço e o total da ordem é o backend (ver quantity.ts).
+ * O total exibido é **estimativa**: a tela multiplica quantidade por preço só
+ * para orientar. O que a compra envia é a quantidade; preço, custo e saldo
+ * final vêm da resposta do backend, que é quem buscou a cotação no instante da
+ * execução. Por isso o aviso de saldo não bloqueia o botão de forma definitiva
+ * — quem recusa de verdade é o servidor, com os números dele.
  *
- * O total é derivado na renderização, não guardado em `useState`: estado
- * derivado duplicado desincroniza na primeira vez que alguém esquece de
- * atualizar os dois.
+ * É um `<form>`: dá Enter para enviar e o botão de submit de graça, sem
+ * `onKeyDown` na mão.
  */
-export function BuyBitcoinForm({ price, balance }: BuyBitcoinFormProps) {
+export function BuyBitcoinForm({
+  leagueId,
+  accessToken,
+  price,
+  balance,
+  onExecuted,
+}: BuyBitcoinFormProps) {
   /*
    * A quantidade mora aqui como **texto**, exatamente como foi digitada. É o
-   * valor que vai no payload da ordem quando a compra existir, e o backend o
-   * espera como decimal exato — convertê-lo para `number` em algum ponto do
-   * caminho seria perder precisão antes mesmo de sair da tela.
+   * valor que vai no payload, e o backend o espera como decimal exato —
+   * convertê-lo para `number` no caminho perderia precisão antes de sair da
+   * tela.
    */
   const [quantity, setQuantity] = useState('')
+
+  /** Última compra concluída, para a tela confirmar o que de fato aconteceu. */
+  const [lastOrder, setLastOrder] = useState<ExecutedOrder>()
+
+  const { buy, buying, error: buyError, clearError } = useBuyBitcoin(
+    leagueId,
+    accessToken,
+    (order) => {
+      setLastOrder(order)
+      // Limpa o campo: deixar a quantidade ali convida a um segundo clique que
+      // compraria de novo sem a pessoa perceber.
+      setQuantity('')
+      onExecuted(order)
+    },
+  )
 
   const parsed = parseQuantity(quantity)
 
   // Sem preço não há o que estimar, e quantidade inválida também não rende
-  // total: nos dois casos a linha de baixo mostra um traço.
+  // total: nos dois casos a linha mostra um traço.
   const total =
     parsed.kind === 'valid' && price
       ? previewTotalUsd(parsed.value, price)
@@ -60,18 +90,41 @@ export function BuyBitcoinForm({ price, balance }: BuyBitcoinFormProps) {
 
   const aboveBalance = total !== undefined && isAboveBalance(total, balance)
 
-  const error = parsed.kind === 'invalid' ? parsed.message : undefined
+  const quantityError = parsed.kind === 'invalid' ? parsed.message : undefined
   const hint = price
     ? `Disponível: ${formatUsd(balance)}`
-    : 'Sem cotação no momento — o total não pode ser calculado.'
+    : 'Sem cotação no momento — o total só será conhecido na confirmação.'
+
+  function handleChange(value: string) {
+    setQuantity(value)
+    // Erro de uma tentativa anterior não deve ficar na tela enquanto a pessoa
+    // corrige o valor.
+    if (buyError) clearError()
+    if (lastOrder) setLastOrder(undefined)
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+
+    // A tela não envia o que ela mesma sabe que é inválido. A validação que
+    // vale continua sendo a do backend — esta só evita uma ida à rede.
+    if (parsed.kind !== 'valid') return
+
+    await buy(parsed.value)
+  }
 
   return (
-    <section className="buy" aria-labelledby="buy-title">
+    <form className="buy" onSubmit={handleSubmit} aria-labelledby="buy-title">
       <h3 className="buy__title" id="buy-title">
         Comprar bitcoin
       </h3>
 
-      <Field id={QUANTITY_FIELD_ID} label="Quantidade (BTC)" error={error} hint={hint}>
+      <Field
+        id={QUANTITY_FIELD_ID}
+        label="Quantidade (BTC)"
+        error={quantityError}
+        hint={hint}
+      >
         <input
           className="field__input buy__quantity"
           id={QUANTITY_FIELD_ID}
@@ -88,12 +141,13 @@ export function BuyBitcoinForm({ price, balance }: BuyBitcoinFormProps) {
           min="0"
           placeholder="0,0000"
           value={quantity}
-          onChange={(event) => setQuantity(event.target.value)}
+          onChange={(event) => handleChange(event.target.value)}
+          disabled={buying}
           /* A borda vermelha do authForm.css é pendurada no `aria-invalid`, não
              numa classe paralela: o visual e o que o leitor de tela anuncia não
              podem divergir. */
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy(QUANTITY_FIELD_ID, error, hint)}
+          aria-invalid={quantityError ? true : undefined}
+          aria-describedby={describedBy(QUANTITY_FIELD_ID, quantityError, hint)}
         />
       </Field>
 
@@ -103,14 +157,16 @@ export function BuyBitcoinForm({ price, balance }: BuyBitcoinFormProps) {
         <span className="buy__total-label">Total estimado</span>
         <strong
           className={
-            aboveBalance ? 'buy__total-value buy__total-value--over' : 'buy__total-value'
+            aboveBalance
+              ? 'buy__total-value buy__total-value--over'
+              : 'buy__total-value'
           }
         >
           {total === undefined ? '—' : formatUsd(total)}
         </strong>
       </div>
 
-      {/* Avisa e deixa digitar, por decisão de produto: quem valida de verdade é
+      {/* Avisa e deixa tentar, por decisão de produto: quem valida de verdade é
           o backend na execução da ordem; a tela só antecipa o resultado para a
           pessoa não descobrir no último clique. */}
       {aboveBalance && (
@@ -118,6 +174,40 @@ export function BuyBitcoinForm({ price, balance }: BuyBitcoinFormProps) {
           Isso passa do seu saldo de {formatUsd(balance)} nesta liga.
         </p>
       )}
-    </section>
+
+      <button
+        type="submit"
+        className="button button--primary buy__submit"
+        // Desabilitado só pelo que impede a requisição de existir: sem
+        // quantidade válida não há o que enviar, e durante o envio o clique
+        // repetido seria uma segunda compra. **Saldo insuficiente não
+        // desabilita** — quem decide isso é o backend, com o preço dele.
+        disabled={parsed.kind !== 'valid' || buying}
+      >
+        {buying ? 'Comprando…' : 'Comprar'}
+      </button>
+
+      {/* A mensagem vem pronta do backend: "Saldo insuficiente: a ordem custa X
+          e você tem Y", liga fora da janela, cotação indisponível. A tela não
+          reescreve nenhuma — quem conhece a regra é quem a aplicou. */}
+      {buyError && (
+        <p className="form__alert form__alert--error" role="alert">
+          {buyError}
+        </p>
+      )}
+
+      {/* Confirmação com os números **executados**, não com os estimados: o
+          preço pode ter se movido entre a tela e o servidor, e esconder isso
+          faria a pessoa achar que o saldo saiu errado. */}
+      {lastOrder && !buyError && (
+        <p className="buy__done" role="status">
+          Comprou <strong>{lastOrder.quantity} BTC</strong> a{' '}
+          {formatUsd(lastOrder.unitPrice)}, total {formatUsd(lastOrder.totalCost)}.
+          <br />
+          Agora você tem {lastOrder.positionQuantity} BTC e{' '}
+          {formatUsd(lastOrder.cashBalance)} em caixa.
+        </p>
+      )}
+    </form>
   )
 }

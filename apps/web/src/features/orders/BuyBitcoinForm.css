@@ -78,3 +78,27 @@
   line-height: 1.45;
   color: var(--danger);
 }
+
+/*
+ * Botão de comprar. Ocupa a largura toda: é a ação principal do bloco, e dentro
+ * de um modal estreito um botão curto à direita competiria com o "Fechar" do
+ * rodapé.
+ */
+.buy__submit {
+  width: 100%;
+}
+
+/*
+ * Confirmação da compra. Verde não: o projeto não tem cor de sucesso própria, e
+ * o dourado já é a cor de valor em toda a tela. Fundo levemente destacado para
+ * o bloco não se confundir com o resto do formulário.
+ */
+.buy__done {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  color: var(--cream);
+  background: var(--surface-overlay);
+  border-radius: 8px;
+  border: 1px solid var(--edge);
+}

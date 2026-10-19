@@ -240,6 +240,9 @@ export function DashboardPage({ session, onLogout }: DashboardPageProps) {
         <ParticipantsModal
           league={viewingParticipantsOf}
           accessToken={session.accessToken}
+          // Comprar muda o saldo, que aparece no card da liga atrás do modal.
+          // A lista é relida da API, nunca ajustada na mão aqui.
+          onOrderExecuted={refresh}
           onClose={() => setViewingParticipantsOf(undefined)}
         />
       )}

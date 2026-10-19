@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { formatUsd } from '../../lib/money'
 import { BuyBitcoinForm } from '../orders/BuyBitcoinForm'
@@ -13,6 +13,11 @@ type ParticipantsModalProps = {
   league: League
   /** Token da sessão: a rota de participantes é protegida e exige participar da liga. */
   accessToken: string
+  /**
+   * Avisa que uma compra aconteceu, para o dashboard reler as ligas: o saldo
+   * do card atrás do modal mudou.
+   */
+  onOrderExecuted: () => void
   onClose: () => void
 }
 
@@ -31,9 +36,24 @@ type ParticipantsModalProps = {
 export function ParticipantsModal({
   league,
   accessToken,
+  onOrderExecuted,
   onClose,
 }: ParticipantsModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+
+  /*
+   * Saldo depois da última compra feita **neste modal**.
+   *
+   * Fica separado de `league.cashBalance` em vez de copiá-lo para o estado: o
+   * valor da prop continua sendo a verdade até existir algo mais novo, e só
+   * então este assume. Copiar a prop na montagem criaria estado derivado
+   * duplicado, que desincroniza.
+   *
+   * O número vem da resposta da compra — é o saldo que o Postgres gravou. A
+   * tela não subtrai nada por conta própria.
+   */
+  const [balanceAfterOrder, setBalanceAfterOrder] = useState<string>()
+  const currentBalance = balanceAfterOrder ?? league.cashBalance
 
   const { participants, loading, error, refresh } = useLeagueParticipants(
     league.id,
@@ -158,12 +178,24 @@ export function ParticipantsModal({
           onRetry={bitcoin.refresh}
         />
 
-        {/* `league.cashBalance` é o saldo de **quem está chamando** nesta liga
-            (ver leagues.controller.ts), que é exatamente o saldo contra o qual
-            a compra precisa ser comparada. */}
+        {/* O saldo é o de **quem está chamando** nesta liga (ver
+            leagues.controller.ts) — exatamente o saldo contra o qual a compra
+            é comparada.
+
+            A compra muda três coisas, e cada uma é relida de onde ela mora: o
+            saldo vem na resposta da ordem, a lista de participantes é relida
+            da API (o saldo de todo mundo aparece ali) e o dashboard relê as
+            ligas para o card atrás do modal. Nada é recalculado na tela. */}
         <BuyBitcoinForm
+          leagueId={league.id}
+          accessToken={accessToken}
           price={bitcoin.quote?.price}
-          balance={league.cashBalance}
+          balance={currentBalance}
+          onExecuted={(order) => {
+            setBalanceAfterOrder(order.cashBalance)
+            refresh()
+            onOrderExecuted()
+          }}
         />
 
         {participantsSection()}

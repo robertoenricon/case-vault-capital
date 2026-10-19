@@ -136,6 +136,11 @@ model LeagueParticipant {
   /// com participante começando com zero.
   cashBalance Decimal @map("cash_balance") @db.Decimal(20, 8)
 
+  /// Ordens executadas por esta pessoa nesta liga, e o que ela tem em carteira.
+  /// Lados inversos: não viram coluna.
+  orders    Order[]
+  positions Position[]
+
   // Entrar duas vezes na mesma liga duplicaria a pessoa no ranking. Quem impede
   // é o índice único do banco, não uma verificação antes do INSERT: dois
   // pedidos simultâneos passariam pela verificação e os dois gravariam.
@@ -186,4 +191,93 @@ model LeagueInvite {
   // do único acima.
   @@index([invitedUserId])
   @@map("league_invites")
+}
+
+/// Lado da operação. `sell` já existe no tipo porque a venda é o próximo passo
+/// do mesmo fluxo, e acrescentar valor a um enum do Postgres depois é uma
+/// migration à parte; hoje nenhuma linha é gravada com ele.
+enum OrderSide {
+  buy
+  sell
+
+  @@map("order_side")
+}
+
+/// Ordem executada: o registro **imutável** do que aconteceu.
+///
+/// Nenhuma coluna aqui é recalculada depois. Preço e custo são gravados como
+/// foram no instante da execução, e não referenciados de outro lugar: a cotação
+/// de amanhã não pode reescrever o que a pessoa pagou hoje. É o que permite
+/// auditar uma carteira — somar as ordens tem de bater com a posição.
+///
+/// Não tem `league_id`: a liga vem por `participant_id`, que já aponta para a
+/// participação (e ela, para a liga). Duplicar a coluna criaria duas verdades
+/// que poderiam discordar.
+model Order {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  participantId String            @map("participant_id") @db.Uuid
+  // Apagar a participação apaga as ordens dela: ordem sem dono não tem leitura
+  // possível. Como participação só some junto com a liga, isso só acontece
+  // quando a liga inteira deixa de existir.
+  participant   LeagueParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  side OrderSide
+
+  /// Código do ativo, como o produto o chama: `BTC`. Não é o par da corretora
+  /// (`BTCUSDT`) — vocabulário de fornecedor não entra na modelagem.
+  symbol String @db.VarChar(10)
+
+  /// Quantidade negociada. Escala 8 = 1 satoshi, a menor fração que existe.
+  quantity Decimal @db.Decimal(20, 8)
+
+  /// Preço unitário em dólar no instante da execução, obtido pelo **backend**.
+  /// O cliente nunca informa preço — ele diz o quê e quanto, jamais por quanto.
+  unitPrice Decimal @map("unit_price") @db.Decimal(20, 8)
+
+  /// Quanto saiu do saldo: quantidade × preço, truncado na oitava casa.
+  ///
+  /// Gravado, e não recalculado na leitura, de propósito: a multiplicação é
+  /// truncada uma única vez na aplicação, e é **este** número que debitou o
+  /// saldo. Recalcular depois poderia dar outro valor, e o extrato deixaria de
+  /// fechar com a carteira.
+  totalCost Decimal @map("total_cost") @db.Decimal(20, 8)
+
+  executedAt DateTime @default(now()) @map("executed_at") @db.Timestamptz(6)
+
+  // "As ordens desta participação" é a consulta do extrato, e também a que o
+  // ranking vai usar.
+  @@index([participantId])
+  @@map("orders")
+}
+
+/// Quanto de cada cripto a pessoa tem **agora**, nesta liga.
+///
+/// É estado materializado: dá para chegar nele somando as ordens, e ainda assim
+/// a coluna existe. O motivo é a venda, que precisa recusar "vender mais do que
+/// tenho" sem brecha de concorrência — com a quantidade numa coluna, a recusa
+/// vira escrita condicional (`quantity >= x`), que o banco resolve sozinho.
+/// Derivando por SOMA, haveria janela entre ler o total e gravar a venda.
+///
+/// O preço assumido é ter duas verdades sobre a mesma coisa. O que as mantém
+/// juntas: posição e ordem são **sempre** escritas na mesma transação.
+model Position {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  participantId String            @map("participant_id") @db.Uuid
+  participant   LeagueParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  symbol String @db.VarChar(10)
+
+  /// Quantidade em carteira. Nunca negativa: venda a descoberto não existe
+  /// neste produto (decisão registrada). Quem garante é a regra na aplicação,
+  /// junto da escrita condicional.
+  quantity Decimal @db.Decimal(20, 8)
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Uma linha por ativo por participação. O único é o que torna possível somar
+  // na posição existente em vez de empilhar uma linha por compra.
+  @@unique([participantId, symbol])
+  @@map("positions")
 }

@@ -14,14 +14,18 @@ import { QuotesController } from './quotes.controller.js';
  * a Binance por outra API, ou embrulhá-la num provider com cache, é mudar esta
  * linha; nenhum consumidor da interface fica sabendo.
  *
- * Não exporta nada ainda, pelo mesmo critério do `leagues`: ninguém depende de
- * cotação fora deste módulo. Quando o serviço de ordens existir, o
- * `QUOTES_PROVIDER` sai daqui explicitamente — e aí a exportação significa
- * alguma coisa.
+ * Exporta o `QUOTES_PROVIDER` — e só ele — desde que o módulo de ordens
+ * passou a precisar do preço para executar uma compra. Quem o recebe depende
+ * da **interface**, não da Binance: trocar de fonte continua sendo mexer na
+ * linha de `providers` abaixo, sem nenhum consumidor ficar sabendo.
+ *
+ * O controller e o adaptador concreto seguem privados: nenhum outro módulo tem
+ * motivo para alcançar a implementação direto.
  */
 @Module({
   imports: [AuthModule],
   controllers: [QuotesController],
   providers: [{ provide: QUOTES_PROVIDER, useClass: BinanceQuotesProvider }],
+  exports: [QUOTES_PROVIDER],
 })
 export class QuotesModule {}
