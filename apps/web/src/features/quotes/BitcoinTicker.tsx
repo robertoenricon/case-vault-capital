@@ -1,27 +1,34 @@
 import { formatUsd } from '../../lib/money'
-import { useBitcoinQuote } from './useBitcoinQuote'
+import type { BitcoinQuote } from './bitcoinQuoteApi'
 import './BitcoinTicker.css'
 
 type BitcoinTickerProps = {
-  /** Token da sessão: a rota de cotação é protegida, como as outras. */
-  accessToken: string
+  /** `undefined` enquanto carrega e quando a consulta falhou. */
+  quote?: BitcoinQuote
+  loading: boolean
+  error?: string
+  onRetry: () => void
 }
 
 /**
  * Preço atual do bitcoin, para o topo do modal.
  *
- * É componente próprio, e não um bloco dentro do modal de participantes, por
- * um motivo concreto: cotação e lista de participantes são duas buscas
- * independentes, e uma não pode derrubar a outra. A Binance fora do ar tem que
- * deixar a lista de participantes intacta — com o preço aqui dentro, isso vem
- * de graça, porque cada um tem o próprio estado.
+ * Só exibe: a busca é de quem o renderiza. Nasceu buscando por conta própria,
+ * quando era o único interessado no preço, e virou apresentacional quando o
+ * formulário de compra passou a precisar da **mesma** cotação. Com dois hooks
+ * independentes seriam duas chamadas à Binance por abertura de modal, e os
+ * dois blocos da tela poderiam exibir preços diferentes.
  *
- * Também é o que permite reaproveitar o ticker na tela de compra e venda
- * depois, sem arrastar nada de liga junto.
+ * A independência que importa continua de pé: a cotação tem estado próprio,
+ * separado do da lista de participantes, então a Binance fora do ar não tira
+ * a lista do ar.
  */
-export function BitcoinTicker({ accessToken }: BitcoinTickerProps) {
-  const { quote, loading, error, refresh } = useBitcoinQuote(accessToken)
-
+export function BitcoinTicker({
+  quote,
+  loading,
+  error,
+  onRetry,
+}: BitcoinTickerProps) {
   if (loading) {
     return (
       <div className="ticker" role="status">
@@ -45,7 +52,7 @@ export function BitcoinTicker({ accessToken }: BitcoinTickerProps) {
         <button
           type="button"
           className="ticker__retry"
-          onClick={refresh}
+          onClick={onRetry}
           /* O texto visível é curto por caber no header; quem usa leitor de
              tela ouve o que o botão realmente faz. */
           aria-label="Tentar consultar a cotação de novo"

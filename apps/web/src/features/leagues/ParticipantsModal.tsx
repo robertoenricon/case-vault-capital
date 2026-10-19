@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { formatUsd } from '../../lib/money'
+import { BuyBitcoinForm } from '../orders/BuyBitcoinForm'
 import { BitcoinTicker } from '../quotes/BitcoinTicker'
+import { useBitcoinQuote } from '../quotes/useBitcoinQuote'
 import type { League } from './leaguesApi'
 import { useLeagueParticipants } from './useLeagueParticipants'
 import '../auth/authForm.css'
@@ -37,6 +39,18 @@ export function ParticipantsModal({
     league.id,
     accessToken,
   )
+
+  /*
+   * A cotação é buscada **aqui**, e não dentro do ticker, porque dois blocos
+   * da tela dependem dela: o preço exibido e o total estimado da compra. Com
+   * um hook em cada um seriam duas chamadas à Binance por abertura de modal, e
+   * eles poderiam mostrar preços diferentes um do outro.
+   *
+   * Busca separada da dos participantes de propósito: cada uma tem o próprio
+   * carregando e o próprio erro, então a Binance fora do ar não tira a lista
+   * do ar — e vice-versa.
+   */
+  const bitcoin = useBitcoinQuote(accessToken)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -136,9 +150,21 @@ export function ParticipantsModal({
         </header>
 
         {/* Cotação no header, acima da lista: é o preço com que a liga opera, e
-            vem antes dos saldos porque é o que dá sentido a eles. Busca própria
-            e estado próprio — a Binance fora do ar não tira a lista do ar. */}
-        <BitcoinTicker accessToken={accessToken} />
+            vem antes dos saldos porque é o que dá sentido a eles. */}
+        <BitcoinTicker
+          quote={bitcoin.quote}
+          loading={bitcoin.loading}
+          error={bitcoin.error}
+          onRetry={bitcoin.refresh}
+        />
+
+        {/* `league.cashBalance` é o saldo de **quem está chamando** nesta liga
+            (ver leagues.controller.ts), que é exatamente o saldo contra o qual
+            a compra precisa ser comparada. */}
+        <BuyBitcoinForm
+          price={bitcoin.quote?.price}
+          balance={league.cashBalance}
+        />
 
         {participantsSection()}
 

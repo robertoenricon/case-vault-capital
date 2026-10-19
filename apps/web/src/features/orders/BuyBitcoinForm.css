@@ -1,0 +1,80 @@
+/*
+ * Bloco de compra. O campo em si vem de authForm.css (`.field__input`), como
+ * em todos os formulários do projeto; aqui ficam só a moldura, o total e o
+ * aviso de saldo.
+ *
+ * Sem margem externa e sem largura fixa: quem posiciona é o container, igual
+ * ao ticker de cotação logo acima.
+ */
+
+.buy {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 14px;
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  background: var(--surface-warm);
+}
+
+.buy__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cream-soft);
+}
+
+/*
+ * `tabular-nums` para o número não "dançar" enquanto as setinhas andam: sem
+ * isso cada dígito tem largura própria e o campo treme a cada passo.
+ */
+.buy__quantity {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A resposta à digitação. Linha própria, separada do campo, porque é o que a
+ * pessoa olha enquanto mexe nas setas.
+ */
+.buy__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--edge);
+}
+
+.buy__total-label {
+  font-size: 13px;
+  color: var(--cream-soft);
+}
+
+.buy__total-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--gold);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Total acima do saldo. Muda de cor, não some e não trava o campo: por decisão
+ * de produto a pessoa pode digitar o que quiser e ver quanto custaria — quem
+ * recusa a ordem é o backend.
+ */
+.buy__total-value--over {
+  color: var(--danger);
+}
+
+/*
+ * O aviso em texto, embaixo. Existe além da cor porque cor sozinha não informa
+ * quem não a distingue — e porque "passou do saldo" é mais útil do que vermelho.
+ */
+.buy__over {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--danger);
+}
