@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { LeaguesModule } from './leagues/leagues.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { QuotesModule } from './quotes/quotes.module.js';
+import { RankingModule } from './ranking/ranking.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -14,6 +15,7 @@ import { UsersModule } from './users/users.module.js';
     LeaguesModule,
     QuotesModule,
     OrdersModule,
+    RankingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,24 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { formatBtc, formatUsd } from '../../lib/money'
 import { TradeBitcoinPanel } from '../orders/TradeBitcoinPanel'
 import { BitcoinTicker } from '../quotes/BitcoinTicker'
 import { useBitcoinQuote } from '../quotes/useBitcoinQuote'
+import { LeagueStandings } from '../ranking/LeagueStandings'
+import { useLeagueRanking } from '../ranking/useLeagueRanking'
 import type { League } from './leaguesApi'
-import { useLeagueParticipants } from './useLeagueParticipants'
 import '../auth/authForm.css'
 import './ParticipantsModal.css'
 
 type ParticipantsModalProps = {
   league: League
-  /** Token da sessão: a rota de participantes é protegida e exige participar da liga. */
+  /** Token da sessão: a rota de ranking é protegida e exige participar da liga. */
   accessToken: string
   /**
-   * Id da conta de quem está olhando, para achar a própria linha na lista.
+   * Id da conta de quem está olhando. Serve a duas coisas: destacar a própria
+   * linha no ranking e achar a carteira usada pelo formulário de venda.
    *
-   * É dali que sai a carteira usada pelo formulário de venda. A alternativa
-   * era a API devolver a posição de quem pergunta também na listagem de ligas,
-   * ao lado do saldo; ela já traz essa posição na lista de participantes, e um
+   * A alternativa era a API devolver a posição de quem pergunta também na
+   * listagem de ligas, ao lado do saldo; o ranking já traz essa posição, e um
    * campo a mais em outra rota seria o mesmo dado lido em dois lugares.
    */
   currentUserId: string
@@ -31,14 +31,18 @@ type ParticipantsModalProps = {
 }
 
 /**
- * Modal de participantes: quem está disputando a liga, na ordem em que entrou,
- * com o bitcoin e o saldo de cada um — e o lugar de onde se opera.
+ * Modal da liga: o ranking de quem está disputando — e o lugar de onde se
+ * opera.
  *
- * Nome, carteira e saldo, por decisão de produto: numa competição, todos
- * acompanham todos.
- * A ordem vem do backend — primeiro quem criou a liga, depois quem aceitou
- * convite — e a tela não reordena nada. **Nem ordena por saldo**: quando o
- * ranking existir, quem decide a posição é o backend, com a métrica dele.
+ * Nome, carteira, saldo e colocação, por decisão de produto: numa competição,
+ * todos acompanham todos.
+ *
+ * **Era a lista de participantes em ordem de entrada.** Virou o ranking quando
+ * ele passou a existir, como este comentário previa: a colocação, o patrimônio
+ * e o retorno vêm decididos pelo backend, e a lista mostra as mesmas pessoas
+ * com mais informação. Duas telas para a mesma gente seriam redundância — e a
+ * ordem de entrada sobrevive onde ainda importa, como critério de desempate da
+ * sequência (ver ranking.repository.ts).
  *
  * Mesmo `<dialog>` nativo dos outros dois modais: foco preso, Esc e fundo
  * inerte vêm do navegador.
@@ -70,7 +74,7 @@ export function ParticipantsModal({
 
   const currentBalance = balanceAfterOrder ?? league.cashBalance
 
-  const { participants, loading, error, refresh } = useLeagueParticipants(
+  const { ranking, loading, error, refresh } = useLeagueRanking(
     league.id,
     accessToken,
   )
@@ -78,14 +82,14 @@ export function ParticipantsModal({
   /*
    * Quanto bitcoin quem está olhando tem nesta liga.
    *
-   * Sai da própria lista que o modal já carregou, achando a linha de quem
+   * Sai do próprio ranking que o modal já carregou, achando a linha de quem
    * pergunta — não existe segunda requisição para isso. Fica `undefined`
    * enquanto a lista carrega ou se ela falhou, e o formulário de venda trata
    * esse caso: carteira desconhecida não é carteira vazia.
    */
   const currentPosition =
     positionAfterOrder ??
-    participants?.find((participant) => participant.id === currentUserId)
+    ranking?.standings.find((standing) => standing.userId === currentUserId)
       ?.bitcoinQuantity
 
   /*
@@ -122,11 +126,11 @@ export function ParticipantsModal({
    * resposta — recebe o erro de autorização. O caso real de lista curta é a
    * liga de uma pessoa só, tratado abaixo com um aviso, não com tela vazia.
    */
-  function participantsSection(): ReactNode {
+  function rankingSection(): ReactNode {
     if (loading) {
       return (
         <p className="participants__loading" role="status">
-          Carregando os participantes…
+          Carregando o ranking…
         </p>
       )
     }
@@ -144,45 +148,18 @@ export function ParticipantsModal({
       )
     }
 
-    if (!participants) return null
+    if (!ranking) return null
 
     return (
       <>
-        {/* Cabeçalho das colunas. Fora do `<ul>`, não como primeiro `<li>`:
-            rótulo de coluna não é um participante da lista. */}
-        <div className="participants__head">
-          <span>Participante</span>
-          <span>Bitcoin</span>
-          <span>Em caixa</span>
-        </div>
+        {/* Colocação, patrimônio e retorno de cada um ficam visíveis a todos:
+            a liga é uma competição, e acompanhar o adversário é o ponto.
+            Quem ordena e posiciona é o backend — a tela só exibe. */}
+        <LeagueStandings ranking={ranking} currentUserId={currentUserId} />
 
-        <ul className="participants__list">
-          {participants.map((participant) => (
-            // `key` com o id da conta, nunca o índice.
-            <li className="participants__person" key={participant.id}>
-              <span className="participants__name">{participant.name}</span>
-
-              {/* Posição e saldo de cada um ficam visíveis a todos: a liga é
-                  uma competição, e acompanhar o adversário é o ponto. Saldo
-                  sozinho enganaria — quem trocou caixa por cripto aparece com
-                  pouco dinheiro e não está perdendo por isso. */}
-              <span className="participants__btc">
-                {/* A unidade vai no texto, não só no cabeçalho: é o que faz a
-                    linha fazer sentido lida por um leitor de tela, que não
-                    associa célula a coluna numa lista. */}
-                {formatBtc(participant.bitcoinQuantity)} BTC
-              </span>
-
-              <span className="participants__balance">
-                {formatUsd(participant.cashBalance)}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {/* Liga com uma pessoa só é o estado de toda liga recém-criada: a lista
-            está certa, mas sozinha ela não explica o que falta fazer. */}
-        {participants.length === 1 && (
+        {/* Liga com uma pessoa só é o estado de toda liga recém-criada: o
+            ranking está certo, mas sozinho ele não explica o que falta fazer. */}
+        {ranking.standings.length === 1 && (
           <p className="participants__alone">
             Você é a única pessoa nesta liga por enquanto. Use “Convidar amigos”
             no card da liga para chamar mais gente.
@@ -208,7 +185,7 @@ export function ParticipantsModal({
       <div className="participants__box">
         <header>
           <h2 className="participants__title" id="participants-title">
-            Participantes
+            Ranking
           </h2>
           <p className="participants__subtitle">
             Da liga <strong>{league.name}</strong>.
@@ -229,9 +206,10 @@ export function ParticipantsModal({
             backend compara a ordem.
 
             Uma ordem muda três coisas, e cada uma é relida de onde ela mora:
-            saldo e carteira vêm na resposta, a lista de participantes é relida
-            da API (os números de todo mundo aparecem ali) e o dashboard relê
-            as ligas para o card atrás do modal. Nada é recalculado na tela. */}
+            saldo e carteira vêm na resposta, o ranking é relido da API (os
+            números de todo mundo, e a nova colocação, aparecem ali) e o
+            dashboard relê as ligas para o card atrás do modal. Nada é
+            recalculado na tela. */}
         <TradeBitcoinPanel
           leagueId={league.id}
           accessToken={accessToken}
@@ -246,7 +224,7 @@ export function ParticipantsModal({
           }}
         />
 
-        {participantsSection()}
+        {rankingSection()}
 
         <div className="participants__footer">
           <button type="button" className="button button--ghost" onClick={onClose}>

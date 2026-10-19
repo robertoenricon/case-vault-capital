@@ -1,0 +1,221 @@
+/*
+ * Ranking da liga, dentro do modal.
+ *
+ * Substituiu a lista de participantes, que mostrava as mesmas pessoas sem
+ * colocação. As classes ganharam prefixo próprio (`standings__`) em vez de
+ * reaproveitar `participants__`: são dois blocos diferentes, e o modal
+ * continua dono da caixa, do cabeçalho e do rodapé.
+ */
+
+/*
+ * Cabeçalho das colunas. Pequeno e apagado: orienta na primeira leitura e sai
+ * do caminho depois.
+ *
+ * A grade é declarada aqui e repetida em `.standings__row` — as duas precisam
+ * casar. A alternativa de verdade seria uma `<table>`; mantive lista porque
+ * são pessoas, não planilha, e porque cada célula se explica sozinha ("0,05
+ * BTC", "+4,30%") sem depender do alinhamento.
+ */
+.standings__head {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 10px 14px;
+  padding: 0 2px 6px;
+  border-bottom: 1px solid var(--edge-strong);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--cream-soft);
+
+  /* Os dois rótulos de valor acompanham os números, que são à direita. */
+  & > span:nth-child(3),
+  & > span:nth-child(4) {
+    text-align: right;
+  }
+}
+
+/*
+ * Lista. Rola sozinha e ocupa o que sobrar da altura do modal: com cotação e
+ * formulário acima, uma altura fixa aqui ora deixaria buraco, ora estouraria.
+ * O `min-height: 0` é o que permite um item de flex encolher abaixo do próprio
+ * conteúdo — sem ele a lista não rola, ela empurra.
+ *
+ * `list-style: none` num `<ol>`: a numeração do navegador discordaria da
+ * colocação no empate (dois primeiros lugares virariam "1" e "2"). A semântica
+ * de lista ordenada fica; o número vem do backend.
+ */
+.standings__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/*
+ * Duas linhas por pessoa: colocação, nome, patrimônio e retorno em cima; a
+ * composição da carteira embaixo, atravessando a grade inteira.
+ *
+ * A segunda linha existe porque o patrimônio sozinho não explica a posição —
+ * quem está com o caixa baixo e muito bitcoin lideraria sem motivo visível.
+ */
+.standings__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: baseline;
+  gap: 2px 14px;
+  padding: 11px 2px;
+
+  /* Separador entre pessoas, sem linha sobrando no fim da lista. */
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--edge);
+  }
+}
+
+/*
+ * A própria linha, destacada por fundo e barra dourada à esquerda.
+ *
+ * Fundo e barra, não negrito: numa lista em que todos os nomes têm o mesmo
+ * peso, engrossar um deles bagunça a varredura vertical. O "(você)" ao lado do
+ * nome é o sinal que não depende de cor nenhuma.
+ */
+.standings__row--me {
+  background: hsl(var(--gold-hsl) / 0.07);
+  border-left: 2px solid var(--gold);
+  padding-left: 10px;
+  margin-left: -12px;
+  border-radius: 0 4px 4px 0;
+}
+
+/*
+ * Colocação. Largura mínima para que "1º" e "10º" não desalinhem o nome ao
+ * lado — a coluna é `auto`, então sem isto ela encolheria no primeiro e
+ * esticaria no segundo.
+ */
+.standings__position {
+  min-width: 2.2em;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.standings__name {
+  font-size: 15px;
+  /* Nome de até 120 caracteres não pode esticar a caixa do modal. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.standings__you {
+  color: var(--cream-soft);
+  font-size: 13px;
+}
+
+/*
+ * Marca de empate. Existe porque ver "1º" duas vezes seguidas, sem explicação,
+ * parece defeito — e no primeiro dia da liga **todo mundo** empata.
+ */
+.standings__tie {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--edge-strong);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cream-soft);
+  white-space: nowrap;
+}
+
+/*
+ * Patrimônio: o número que decide a colocação, e por isso o de maior peso na
+ * linha. `tabular-nums` mantém a coluna alinhada entre as linhas, e `nowrap`
+ * impede "US$ 10.000,00" de quebrar ao lado de um nome comprido — nome
+ * encolhe, valor não.
+ */
+.standings__equity {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--gold);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  /* Alinhados à direita: é o que permite comparar as linhas de cima para
+     baixo sem ler dígito por dígito. */
+  text-align: right;
+}
+
+/*
+ * Retorno. Neutro por padrão — quem não variou não ganhou nem perdeu, e pintar
+ * o zero de alguma cor sugeriria movimento.
+ */
+.standings__percent {
+  font-size: 14px;
+  color: var(--cream-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  /* Reserva a largura de "-00,00%" para a coluna não dançar entre linhas. */
+  min-width: 4.6em;
+}
+
+.standings__percent--up {
+  color: var(--gain);
+}
+
+.standings__percent--down {
+  color: var(--danger);
+}
+
+/*
+ * Composição da carteira: de onde o patrimônio veio. Atravessa as quatro
+ * colunas na segunda linha da grade.
+ *
+ * Começa na coluna 2, alinhada ao nome, e não na 1: embaixo da colocação o
+ * texto brigaria com o número dourado. `-1` fecha na última linha da grade.
+ */
+.standings__detail {
+  grid-column: 2 / -1;
+  font-size: 13px;
+  color: var(--cream-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Com que preço o ranking avaliou as carteiras. Discreto, mas presente: um
+ * ranking que se move com o mercado precisa dizer de quando é o número.
+ */
+.standings__basis {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--cream-soft);
+  padding-top: 2px;
+}
+
+/*
+ * Numa tela estreita, retorno e patrimônio na mesma faixa espremem o nome.
+ * O retorno desce para a linha de detalhe, à direita, e o nome recupera o
+ * espaço.
+ */
+@media (max-width: 420px) {
+  .standings__head > span:nth-child(4) {
+    display: none;
+  }
+
+  .standings__row {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .standings__percent {
+    grid-row: 2;
+    grid-column: 3;
+    min-width: 0;
+  }
+
+  .standings__detail {
+    grid-column: 2 / 3;
+  }
+}
