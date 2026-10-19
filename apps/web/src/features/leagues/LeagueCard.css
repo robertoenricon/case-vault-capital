@@ -1,0 +1,168 @@
+/*
+ * Card de uma liga na lista. Fica junto do componente, e não no CSS do
+ * dashboard, para o card não depender de quem o renderiza — a lista decide o
+ * espaçamento entre os cards, o card decide como ele é por dentro.
+ *
+ * O botão de convidar usa `.button--ghost` de authForm.css: o dourado cheio é
+ * do "Criar liga", a ação principal da tela.
+ */
+
+.league-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+
+  @media (max-width: 620px) {
+    /* Situação e botão descem para baixo do nome: na mesma linha, as três
+       informações disputam uma largura que não existe no celular. */
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 16px 18px;
+  }
+}
+
+.league-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Nome comprido encolhe aqui em vez de empurrar o botão para fora. */
+  min-width: 0;
+}
+
+.league-card__name {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 500;
+  margin: 0;
+  /* O nome pode ter 60 caracteres sem espaço nenhum. */
+  overflow-wrap: anywhere;
+}
+
+/*
+ * O nome é um botão, mas não parece um: herda a tipografia do `<h3>` e zera o
+ * visual que o navegador dá a `<button>` (fundo, borda, fonte de formulário).
+ * O que anuncia a ação é o cursor e o sublinhado no hover — um botão dourado
+ * aqui competiria com "Criar liga" e com "Convidar amigos".
+ *
+ * `inherit` na fonte e na cor, e não os valores repetidos: o título decide como
+ * o nome aparece, este bloco só desfaz o estilo padrão do botão.
+ */
+.league-card__name-button {
+  display: block;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--gold);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* Foco visível com o anel do navegador afastado do texto: sem isto, quem
+     navega por teclado perde de vista onde está. */
+  &:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+}
+
+.league-card__period {
+  font-size: 14px;
+  color: var(--cream-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Saldo da liga: rótulo pequeno e valor destacado, um ao lado do outro. O valor
+ * é a informação que a pessoa procura; o rótulo existe para dizer que o saldo é
+ * daquela liga e não da conta.
+ *
+ * `tabular-nums` como no período: numa lista de ligas, dígitos de larguras
+ * diferentes fazem os valores desalinharem de um card para o outro.
+ */
+.league-card__balance {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.league-card__balance-label {
+  font-size: 13px;
+  color: var(--cream-soft);
+}
+
+.league-card__balance-value {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--gold);
+}
+
+/* Situação e ação, à direita do card. */
+.league-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+
+  /* No celular a etiqueta fica à esquerda e o botão à direita, na mesma linha:
+     as duas são curtas e cabem. */
+  @media (max-width: 620px) {
+    justify-content: space-between;
+  }
+}
+
+/*
+ * Etiqueta de situação. `nowrap` porque "Em andamento" quebrado em duas linhas
+ * dentro da pílula fica ilegível.
+ */
+.league-card__status {
+  flex-shrink: 0;
+  padding: 5px 11px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+/* A que está valendo é a única em dourado cheio: é onde a pessoa tem o que fazer. */
+.league-card__status--running {
+  color: var(--surface);
+  background: var(--gold);
+}
+
+.league-card__status--scheduled {
+  color: var(--gold);
+  background: hsl(var(--gold-hsl) / 0.12);
+  border-color: hsl(var(--gold-hsl) / 0.3);
+}
+
+/* Encerrada fica discreta: está na lista como histórico, não como convite. */
+.league-card__status--finished {
+  color: var(--cream-soft);
+  background: var(--surface-overlay);
+  border-color: var(--edge);
+}
+
+/* Menor que o botão padrão do formulário: é ação de item de lista, não de tela. */
+.league-card__invite {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  font-size: 14px;
+  white-space: nowrap;
+}

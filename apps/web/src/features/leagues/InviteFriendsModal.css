@@ -1,0 +1,115 @@
+/*
+ * Modal de convite. Campos e botões vêm de authForm.css; aqui só a caixa, o
+ * fundo e a lista de pessoas.
+ */
+
+/*
+ * Sem `display` declarado de propósito — quem controla isso é o `showModal()`,
+ * e um `display: flex` aqui deixaria o modal visível mesmo fechado.
+ */
+.invite {
+  width: 100%;
+  max-width: 460px;
+  padding: 0;
+  color: var(--cream);
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dark);
+}
+
+.invite::backdrop {
+  background: hsl(28 12% 3% / 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.invite__box {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+
+  @media (max-width: 480px) {
+    padding: 22px 18px;
+  }
+}
+
+.invite__title {
+  font-size: 24px;
+  letter-spacing: -0.3px;
+  margin: 0 0 6px;
+}
+
+.invite__subtitle {
+  font-size: 14px;
+  color: var(--cream-soft);
+}
+
+.invite__loading,
+.invite__empty {
+  font-size: 15px;
+  color: var(--cream-soft);
+  padding: 20px 0;
+}
+
+.invite__retry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/*
+ * Lista de pessoas. Altura limitada com rolagem própria: a base pode ter
+ * centenas de contas, e sem isto o modal cresceria além da tela e levaria os
+ * botões de rodapé para fora do alcance.
+ */
+.invite__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.invite__person {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 2px;
+
+  /* Separador entre pessoas, sem linha sobrando no fim da lista. */
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--edge);
+  }
+}
+
+.invite__name {
+  font-size: 15px;
+  /* Nome de até 120 caracteres não pode empurrar o botão fora do modal. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Botão menor que o padrão do formulário: são muitos numa lista vertical. */
+.invite__action {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  font-size: 14px;
+}
+
+/* Quem já está na liga: texto, não botão — não há ação a oferecer. */
+.invite__already {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--cream-soft);
+  white-space: nowrap;
+}
+
+.invite__footer {
+  display: flex;
+  justify-content: flex-end;
+}

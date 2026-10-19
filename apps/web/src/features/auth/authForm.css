@@ -1,0 +1,181 @@
+/*
+ * Campo e botão dos formulários de autenticação (login e cadastro).
+ *
+ * Estes blocos nasceram em LoginPage.css e foram movidos para cá — sem mudar nome de
+ * classe nem valor — quando a tela de cadastro passou a usar os mesmos campos. Mesma
+ * aparência nas duas telas, definida em um lugar só.
+ */
+
+/* Campo de formulário: rótulo acima, input abaixo. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field__label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* O input usa o fundo mais profundo da paleta para "afundar" dentro do card. */
+.field__input {
+  width: 100%;
+  padding: 11px 12px;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  transition:
+    border-color 0.2s var(--ease-out),
+    box-shadow 0.2s var(--ease-out);
+
+  &::placeholder {
+    color: var(--cream-soft);
+  }
+
+  &:hover {
+    border-color: var(--edge-strong);
+  }
+
+  /* Substitui o anel global de foco por borda + halo, que cabe melhor no campo. */
+  &:focus-visible {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px hsl(var(--gold-hsl) / 0.2);
+  }
+}
+
+/* Linha do input quando ele tem um controle próprio à direita (mostrar/ocultar senha). */
+.field__control {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+/* Abre espaço para o botão não cobrir o texto digitado. */
+.field__input--with-control {
+  padding-right: 92px;
+}
+
+/*
+ * Botão de revelar a senha. Rótulo em texto, não ícone de olho: "Mostrar"/"Ocultar"
+ * dispensa interpretação e já é acessível sem depender de aria-label para existir.
+ */
+.field__reveal {
+  position: absolute;
+  right: 5px;
+  padding: 6px 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gold);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    color 0.2s var(--ease-out),
+    background-color 0.2s var(--ease-out);
+
+  &:hover {
+    color: var(--gold-bright);
+    background: var(--surface-overlay);
+  }
+}
+
+/* Dica da regra, visível antes do erro: melhor avisar o limite do que reprovar depois. */
+.field__hint {
+  font-size: 13px;
+  color: var(--cream-soft);
+}
+
+/*
+ * Erro do campo. Nunca aparece antes de a pessoa interagir — quem acabou de abrir a
+ * tela não deve ler "informe seu nome" num campo que ainda não teve chance de digitar.
+ */
+.field__error {
+  font-size: 13px;
+  color: var(--danger);
+}
+
+/*
+ * Estado inválido ligado ao `aria-invalid` do input, não a uma classe paralela: assim a
+ * borda vermelha e o que o leitor de tela anuncia não podem divergir. Vem depois da
+ * regra de foco acima de propósito — mesma especificidade, o último ganha.
+ */
+.field__input[aria-invalid='true'] {
+  border-color: var(--danger);
+
+  &:hover {
+    border-color: var(--danger);
+  }
+
+  &:focus-visible {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px hsl(var(--danger-hsl) / 0.2);
+  }
+}
+
+/*
+ * Aviso do formulário inteiro, não de um campo: resposta do servidor ao envio
+ * (e-mail já em uso, API fora do ar) ou confirmação vinda da outra tela.
+ */
+.form__alert {
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.form__alert--error {
+  color: var(--danger);
+  background: hsl(var(--danger-hsl) / 0.1);
+  border-color: hsl(var(--danger-hsl) / 0.3);
+}
+
+.form__alert--success {
+  color: var(--gold-bright);
+  background: hsl(var(--gold-hsl) / 0.1);
+  border-color: hsl(var(--gold-hsl) / 0.3);
+}
+
+.button {
+  font-weight: 500;
+  padding: 11px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color 0.2s var(--ease-out),
+    border-color 0.2s var(--ease-out);
+
+  /*
+   * Enquanto o cadastro está indo para a API. O cursor e a opacidade mudam, mas
+   * a cor de fundo continua a do botão: o `:disabled` aqui é um estado de
+   * espera de segundos, não um botão permanentemente indisponível.
+   */
+  &:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+
+/* Dourado sobre fundo escuro: mesmo par de cores que o site usa em ::selection. */
+.button--primary {
+  color: var(--surface);
+  background: var(--gold);
+
+  &:hover {
+    background: var(--gold-bright);
+  }
+}
+
+.button--ghost {
+  color: var(--gold);
+  background: var(--surface-overlay);
+  border-color: var(--edge);
+
+  &:hover {
+    background: var(--surface-overlay-hover);
+    border-color: var(--edge-strong);
+  }
+}

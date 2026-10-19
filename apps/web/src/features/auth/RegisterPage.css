@@ -1,0 +1,74 @@
+/*
+ * Moldura da tela de cadastro. Campos e botões vêm de authForm.css.
+ */
+
+.register {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.register__card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  /* Menor que o gap do login: são quatro campos, e 18px empurraria o botão para fora da dobra. */
+  gap: 16px;
+  padding: 32px;
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dark);
+
+  @media (max-width: 480px) {
+    padding: 24px 20px;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
+.register__header {
+  margin-bottom: 4px;
+}
+
+/* Assinatura da marca acima do título da ação. */
+.register__brand {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 14px;
+}
+
+.register__title {
+  font-size: 30px;
+  letter-spacing: -0.4px;
+  margin: 0 0 6px;
+}
+
+.register__subtitle {
+  font-size: 15px;
+  color: var(--cream-soft);
+}
+
+/* Separador com texto no meio da linha. */
+.register__separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--cream-soft);
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--edge);
+  }
+}

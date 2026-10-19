@@ -1,0 +1,283 @@
+// Fonte única da modelagem. Toda alteração aqui vira uma migration SQL
+// versionada em prisma/migrations — o banco nunca é alterado à mão.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Conta de acesso à plataforma. A identidade é global: a mesma conta participa
+/// de várias ligas. O vínculo com a liga (e o saldo) mora em outra tabela, não aqui.
+model User {
+  // UUID v7 gerado pela aplicação. v7 carrega o instante de criação no prefixo,
+  // então as chaves entram quase em ordem e o índice primário não fragmenta como
+  // com v4 aleatório. Preço: INSERT feito direto no psql precisa informar o id,
+  // porque o default vive no client e não na coluna.
+  id String @id @default(uuid(7)) @db.Uuid
+
+  name String @db.VarChar(120)
+
+  // Guardado sempre normalizado (trim + lowercase) pela aplicação: o UNIQUE do
+  // Postgres compara byte a byte, e sem isso "ana@mail.com" e "Ana@Mail.com"
+  // virariam duas contas.
+  email String @unique @db.VarChar(255)
+
+  // Hash da senha, nunca a senha. O nome da coluna é parte da defesa: gravar
+  // texto puro aqui fica obviamente errado na leitura. Sem limite de tamanho
+  // porque a lib de hash ainda não foi escolhida e cada uma produz um tamanho
+  // diferente (bcrypt 60, argon2 ~100).
+  passwordHash String @map("password_hash")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Lado inverso da participação. Não vira coluna: existe só para o Prisma
+  // saber navegar da conta para as ligas dela.
+  leagues LeagueParticipant[]
+
+  // Convites recebidos. Lado inverso também: quem é convidado para quê mora
+  // em `LeagueInvite`.
+  invites LeagueInvite[]
+
+  @@map("users")
+}
+
+/// Competição entre amigos, com janela de tempo própria. A liga é a entidade
+/// compartilhada: quem participa dela mora em `LeagueParticipant`, nunca aqui —
+/// uma coluna de participante na própria liga quebraria o compartilhamento
+/// (cada linha viraria uma pessoa solta, sem nada que as agrupasse).
+///
+/// Não existe coluna de dono nem de papel: numa liga entre amigos não há
+/// permissão a conceder, então quem cria entra como participante comum. A
+/// consequência é assumida — "quem criou" não é recuperável depois. Se um dia
+/// aparecer encerrar liga ou remover participante, o papel nasce ali, com
+/// migration própria, e não especulado agora.
+model League {
+  // Mesmo padrão de chave do `User`: UUID v7 gerado pela aplicação.
+  id String @id @default(uuid(7)) @db.Uuid
+
+  // Nome que o grupo dá à competição. Sem UNIQUE de propósito: dois grupos de
+  // amigos podem ter a sua "Liga dos Amigos", e a identidade da liga é o id —
+  // o nome é rótulo, não chave.
+  name String @db.VarChar(60)
+
+  // Janela de disputa. `Timestamptz` e não `Date`: a liga começa e termina em
+  // um instante, e o ranking precisa saber se a ordem caiu dentro dela — com
+  // participantes em fusos diferentes, data sem hora é ambígua.
+  startsAt DateTime @map("starts_at") @db.Timestamptz(6)
+  endsAt   DateTime @map("ends_at") @db.Timestamptz(6)
+
+  /// Saldo fictício com que **todo** participante desta liga começa, em dólar.
+  ///
+  /// Mora na liga, e não no participante, porque "todos recebem o mesmo saldo"
+  /// é propriedade da competição: com a coluna aqui, é o schema que garante a
+  /// igualdade — quem entra no meio da liga recebe o mesmo valor de quem criou,
+  /// mesmo que o padrão do ambiente tenha mudado no intervalo.
+  ///
+  /// É uma cópia do valor configurado em `LEAGUE_INITIAL_BALANCE`, congelada no
+  /// instante da criação, e não uma leitura do ambiente a cada consulta: o
+  /// ranking calcula retorno sobre esta base, e uma base que muda reescreveria o
+  /// desempenho de ligas já encerradas.
+  ///
+  /// `Decimal` e nunca `Float`: dinheiro em ponto flutuante perde centavo na
+  /// soma. A escala 8 acompanha a precisão de quantidade de cripto — o débito de
+  /// uma ordem é quantidade × preço, e com escala 2 o Postgres arredondaria essa
+  /// conta em silêncio, antes de existir uma regra de arredondamento decidida.
+  initialBalance Decimal @map("initial_balance") @db.Decimal(20, 8)
+
+  participants LeagueParticipant[]
+  invites      LeagueInvite[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("leagues")
+}
+
+/// Vínculo entre uma conta e uma liga — é esta tabela que realiza o N:N
+/// ("um usuário em várias ligas, uma liga com vários usuários").
+///
+/// O nome do participante não é copiado para cá: ele vem de `users.name` por
+/// join. Copiar criaria duas verdades para o mesmo dado, e a cópia envelheceria
+/// no dia em que a pessoa trocasse o nome.
+model LeagueParticipant {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  leagueId String @map("league_id") @db.Uuid
+  // Apagar a liga apaga as participações dela: participação sem liga é lixo,
+  // não tem leitura possível.
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id") @db.Uuid
+  // Já a conta é restrita: apagar quem tem histórico de disputa deixaria o
+  // ranking com um buraco. Se um dia existir exclusão de conta, ela precisa
+  // decidir explicitamente o que fazer com as ligas.
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  /// Dinheiro fictício que esta pessoa ainda tem **nesta** liga, em dólar.
+  ///
+  /// É aqui que a carteira por liga acontece: a mesma conta em três ligas tem
+  /// três linhas, cada uma com o próprio saldo. Uma coluna em `users` daria
+  /// carteira única e as ligas passariam a interferir uma na outra.
+  ///
+  /// Nasce igual a `leagues.initial_balance` e muda a cada ordem; a base de
+  /// comparação do ranking continua na liga. São dois dados diferentes —
+  /// "com quanto começou" e "quanto tem agora" —, e por isso duas colunas:
+  /// guardar só este perderia a base no dia em que o padrão do ambiente mudasse.
+  ///
+  /// Sem `@default`: o valor vem sempre da liga, decidido pela aplicação. Um
+  /// default no banco deixaria um INSERT que esqueceu o saldo passar calado,
+  /// com participante começando com zero.
+  cashBalance Decimal @map("cash_balance") @db.Decimal(20, 8)
+
+  /// Ordens executadas por esta pessoa nesta liga, e o que ela tem em carteira.
+  /// Lados inversos: não viram coluna.
+  orders    Order[]
+  positions Position[]
+
+  // Entrar duas vezes na mesma liga duplicaria a pessoa no ranking. Quem impede
+  // é o índice único do banco, não uma verificação antes do INSERT: dois
+  // pedidos simultâneos passariam pela verificação e os dois gravariam.
+  @@unique([leagueId, userId])
+
+  // O único cobre `league_id` (é o prefixo dele), mas não `user_id` sozinho —
+  // e "as ligas deste usuário" filtra exatamente por `user_id`.
+  @@index([userId])
+  @@map("league_participants")
+}
+
+/// Convite pendente para entrar numa liga.
+///
+/// É tabela separada de `league_participants` de propósito, e não uma coluna
+/// de situação lá: assim "participante" continua significando "está dentro da
+/// liga", verdade única. Nenhuma consulta de participação — a autorização por
+/// liga, a lista de candidatos e, depois, ordens e ranking — precisa aprender
+/// a filtrar convidado-que-ainda-não-aceitou. Esquecer esse filtro em uma
+/// consulta só seria vazamento silencioso, não erro de compilação.
+///
+/// A linha existe **enquanto o convite está pendente**: aceitar cria a
+/// participação e apaga o convite (na mesma transação), recusar apaga. Não há
+/// histórico de aceite nem de recusa, por decisão registrada — guardá-lo
+/// exigiria coluna de situação e uma regra para "convite recusado pode ser
+/// reenviado?", que o MVP não precisa responder.
+model LeagueInvite {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  leagueId String @map("league_id") @db.Uuid
+  // Apagar a liga apaga os convites dela: convite para liga que não existe não
+  // tem leitura possível.
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  invitedUserId String @map("invited_user_id") @db.Uuid
+  // Mesma restrição da participação: apagar conta com convite pendente exigiria
+  // decidir o que fazer com ele, e hoje não há exclusão de conta.
+  invitedUser   User   @relation(fields: [invitedUserId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Convidar duas vezes a mesma pessoa para a mesma liga empilharia convites
+  // idênticos na tela dela. Quem impede é o índice único do banco, não uma
+  // verificação antes do INSERT: dois cliques simultâneos passariam pela
+  // verificação e os dois gravariam.
+  @@unique([leagueId, invitedUserId])
+
+  // "Meus convites" filtra exatamente por `invited_user_id`, que não é prefixo
+  // do único acima.
+  @@index([invitedUserId])
+  @@map("league_invites")
+}
+
+/// Lado da operação. `sell` já existe no tipo porque a venda é o próximo passo
+/// do mesmo fluxo, e acrescentar valor a um enum do Postgres depois é uma
+/// migration à parte; hoje nenhuma linha é gravada com ele.
+enum OrderSide {
+  buy
+  sell
+
+  @@map("order_side")
+}
+
+/// Ordem executada: o registro **imutável** do que aconteceu.
+///
+/// Nenhuma coluna aqui é recalculada depois. Preço e custo são gravados como
+/// foram no instante da execução, e não referenciados de outro lugar: a cotação
+/// de amanhã não pode reescrever o que a pessoa pagou hoje. É o que permite
+/// auditar uma carteira — somar as ordens tem de bater com a posição.
+///
+/// Não tem `league_id`: a liga vem por `participant_id`, que já aponta para a
+/// participação (e ela, para a liga). Duplicar a coluna criaria duas verdades
+/// que poderiam discordar.
+model Order {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  participantId String            @map("participant_id") @db.Uuid
+  // Apagar a participação apaga as ordens dela: ordem sem dono não tem leitura
+  // possível. Como participação só some junto com a liga, isso só acontece
+  // quando a liga inteira deixa de existir.
+  participant   LeagueParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  side OrderSide
+
+  /// Código do ativo, como o produto o chama: `BTC`. Não é o par da corretora
+  /// (`BTCUSDT`) — vocabulário de fornecedor não entra na modelagem.
+  symbol String @db.VarChar(10)
+
+  /// Quantidade negociada. Escala 8 = 1 satoshi, a menor fração que existe.
+  quantity Decimal @db.Decimal(20, 8)
+
+  /// Preço unitário em dólar no instante da execução, obtido pelo **backend**.
+  /// O cliente nunca informa preço — ele diz o quê e quanto, jamais por quanto.
+  unitPrice Decimal @map("unit_price") @db.Decimal(20, 8)
+
+  /// Quanto saiu do saldo: quantidade × preço, truncado na oitava casa.
+  ///
+  /// Gravado, e não recalculado na leitura, de propósito: a multiplicação é
+  /// truncada uma única vez na aplicação, e é **este** número que debitou o
+  /// saldo. Recalcular depois poderia dar outro valor, e o extrato deixaria de
+  /// fechar com a carteira.
+  totalCost Decimal @map("total_cost") @db.Decimal(20, 8)
+
+  executedAt DateTime @default(now()) @map("executed_at") @db.Timestamptz(6)
+
+  // "As ordens desta participação" é a consulta do extrato, e também a que o
+  // ranking vai usar.
+  @@index([participantId])
+  @@map("orders")
+}
+
+/// Quanto de cada cripto a pessoa tem **agora**, nesta liga.
+///
+/// É estado materializado: dá para chegar nele somando as ordens, e ainda assim
+/// a coluna existe. O motivo é a venda, que precisa recusar "vender mais do que
+/// tenho" sem brecha de concorrência — com a quantidade numa coluna, a recusa
+/// vira escrita condicional (`quantity >= x`), que o banco resolve sozinho.
+/// Derivando por SOMA, haveria janela entre ler o total e gravar a venda.
+///
+/// O preço assumido é ter duas verdades sobre a mesma coisa. O que as mantém
+/// juntas: posição e ordem são **sempre** escritas na mesma transação.
+model Position {
+  id String @id @default(uuid(7)) @db.Uuid
+
+  participantId String            @map("participant_id") @db.Uuid
+  participant   LeagueParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  symbol String @db.VarChar(10)
+
+  /// Quantidade em carteira. Nunca negativa: venda a descoberto não existe
+  /// neste produto (decisão registrada). Quem garante é a regra na aplicação,
+  /// junto da escrita condicional.
+  quantity Decimal @db.Decimal(20, 8)
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Uma linha por ativo por participação. O único é o que torna possível somar
+  // na posição existente em vez de empilhar uma linha por compra.
+  @@unique([participantId, symbol])
+  @@map("positions")
+}

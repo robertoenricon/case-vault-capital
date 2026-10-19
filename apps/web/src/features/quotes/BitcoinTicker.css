@@ -1,0 +1,93 @@
+/*
+ * Faixa de cotação. Hoje vive no topo do modal de participantes, mas não
+ * assume nada de quem a hospeda: sem margem externa e sem largura fixa, só a
+ * própria caixa — quem posiciona é o container.
+ */
+
+.ticker {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  background: var(--surface-warm);
+}
+
+/* "Bitcoin": rótulo, não informação. Discreto para o preço ficar com o peso. */
+.ticker__label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cream-soft);
+}
+
+/*
+ * O número é o que a pessoa veio ler. `tabular-nums` mantém a largura estável
+ * entre uma consulta e outra — sem isso o preço "dança" ao reabrir o modal,
+ * porque cada dígito tem largura diferente.
+ */
+.ticker__price {
+  margin-left: auto;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--gold);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Hora da cotação. Deliberadamente pequena: é ressalva, não dado principal.
+ * Quebra para a linha de baixo em tela estreita, antes de espremer o preço.
+ */
+.ticker__asof {
+  font-size: 12px;
+  color: var(--cream-soft);
+  white-space: nowrap;
+}
+
+/* "Consultando…" e "Cotação indisponível" ocupam o lugar do preço. */
+.ticker__pending {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--cream-soft);
+}
+
+/*
+ * Cotação ausente: borda esmaecida em vez de vermelho. A lista de
+ * participantes abaixo está inteira e funcionando — pintar isto de erro diria
+ * que o modal falhou, e ele não falhou.
+ */
+.ticker--off {
+  border-style: dashed;
+  background: transparent;
+}
+
+/*
+ * Botão de texto, menor que os do rodapé: é ação secundária dentro de uma
+ * faixa de 12px de altura útil. Os botões de authForm.css não servem aqui —
+ * dominariam o header inteiro.
+ */
+.ticker__retry {
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--gold);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--gold-bright);
+  }
+
+  /* O foco visível vem do navegador por padrão; aqui ele só ganha respiro para
+     não encostar no texto vizinho. */
+  &:focus-visible {
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+}

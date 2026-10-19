@@ -1,0 +1,71 @@
+/* Moldura da tela de login. Campos e botões vêm de authForm.css. */
+
+.login {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login__card {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 32px;
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dark);
+
+  @media (max-width: 480px) {
+    padding: 24px 20px;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
+.login__header {
+  margin-bottom: 6px;
+}
+
+/* Assinatura da marca acima do título da ação. */
+.login__brand {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 14px;
+}
+
+.login__title {
+  font-size: 30px;
+  letter-spacing: -0.4px;
+  margin: 0 0 6px;
+}
+
+.login__subtitle {
+  font-size: 15px;
+  color: var(--cream-soft);
+}
+
+/* Separador com texto no meio da linha. */
+.login__separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--cream-soft);
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--edge);
+  }
+}
