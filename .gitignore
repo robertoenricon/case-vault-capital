@@ -18,3 +18,6 @@ pnpm-debug.log*
 # Build output
 dist/
 *.tsbuildinfo
+
+# Vínculos e variáveis locais da Vercel CLI
+.vercel/

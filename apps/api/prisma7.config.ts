@@ -5,18 +5,13 @@ import { defineConfig } from 'prisma/config';
 // plataforma de deploy.
 const url = process.env.DATABASE_URL;
 
-// Falhar aqui, e não no meio de uma migration: sem a URL o Prisma tentaria o
-// default dele e a mensagem de erro apontaria para o lugar errado.
-if (!url) {
-  throw new Error(
-    'DATABASE_URL não definida. Rode os comandos do Prisma dentro do container: docker compose exec api npx prisma ...',
-  );
-}
+// Gerar o client no build não depende de um banco provisionado. A API exige
+// DATABASE_URL ao iniciar, e o Prisma exige a URL ao executar migrations.
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
   },
-  datasource: { url },
+  datasource: url ? { url } : undefined,
 });
