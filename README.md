@@ -84,9 +84,9 @@ docker-compose.yml — orquestra api, web e o banco
 - [X] React + NestJS + TypeScript + PostgreSQL
 - [X] Cadastro e login
 - [X] Criar liga + convidar
-- [ ] Saldo fictício inicial por participante
-- [ ] Compra e venda com cotação real
-- [ ] Ranking da liga
+- [X] Saldo fictício inicial por participante
+- [X] Compra e venda com cotação real
+- [X] Ranking da liga
 
 Deploy:
 - [ ] Deploy publico (gerar link)

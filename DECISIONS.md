@@ -17,6 +17,13 @@ Cadastro de conta:
 - Ordem dos participantes: ordem de entrada na liga.
 - Cada usuário recebe, por decisão sua, US$ 10.000 fictícios por liga, 'leagues.initial_balance', guarda o valor do .env no momento que a liga é criada. Mesmo que eu mude o .env, o valor já foi salvo e garante que todos tem o mesmo saldo inicial.
 - Não pode comprar sem saldo nem vender mais criptomoedas do que possui.
+- Fonte: Binance, endpoint público `/api/v3/ticker/price`
+- O preço não atualiza sozinho na tela: busca ao abrir o modal e pronto.
+- Sem cache no backend: cada consulta vai na Binance. Como a tela busca uma vez por abertura de modal, o volume é baixo e o preço nunca aparece velho.
+- Compra de bitcoin (quantidade e total):
+- Total acima do saldo avisa, mas não bloqueia o campo.
+- A quantidade é digitada em BTC, não em dólares. Aceita até 8 casas decimais
+- Comprar BTC somente em liga em "andamento".
 
 ## 2. Arquitetura:
 - Ambiente local em Docker.
@@ -25,7 +32,8 @@ Cadastro de conta:
 - Módulo por domínio (`users`), com Controller (HTTP), Service (regra de negocio) e
   Repositório (banco) separados.
 - JWT Bearer.
-- Leagues (data), league_participants (quem participa), league_invites (convites para ligas)
+- Leagues (data), league_participants (quem participa), league_invites (convites para ligas).
+- Rota de cotação protegida por JWT como as outras. O preço é público no mundo, mas a rota não.
 
 **Principais decisões técnicas:**
 Infra:
@@ -53,6 +61,10 @@ Liga:
 - Performace, como vai listar todos os usuários cadastrados, no futuro, com uma base maior, consulta vai ficar pesada.
 - Abri mão do usuario entrar em uma liga já iniciada, tendo desvantagem, mas isso deixei pra ser escolha do usuário, o sistema já informa que está em andamento, deixo pro usuário decidir o risco.
 - Abri mão de um update simples e rapido para dar baixa se o usuário aceitou o convite, mas, eu teria que ficar fazer update e filtro em demais lugares para ficar validando.
+- Rate Limite na consulta da Binance, optei por sempre que abrir o modal, consultar o valor do Bitcoin.
+Toda vez que abrir o Modal, o valor já atualiza. Caso não tenha valor, mostra "Cotação Indisponível".
+- Teste automatizado (e2e).
+
 
 ## 3. Features próprias:
 - Criei uma feature, onde é listado todos os usuarios cadastrados na aplicação, assim, facilita o envio de convites para participar da Liga, já que é um MVP entre amigos.
@@ -61,6 +73,8 @@ Liga:
 - Lista de participantes da liga, num modal que abre clicando no nome da liga.
 - A autorização sai da própria consulta: quem pede a lista precisa estar nela.
 - Todos os participantes da liga, conseguem ver o saldo inicial de cada um, assim, evita duvidas se alguem está começando com saldo maior.
+- Cotação do bitcoin no header do modal de participantes.
+- A Binance fora do ar deixa a lista intacta, com um aviso no lugar do preço.
 
 
 ## 4. O que ficou de fora:
@@ -71,5 +85,8 @@ Liga:
 - Poder excluir pessoas da liga ou editar (como é um MVP de amigos, não tem necessidade de ter regras complexas para um uso "simples").
 - Paginação da lista de ligas.
 - Detalhes da liga.
+- Cache e rate limit da consulta de cotação.
+- Atualização automática do preço na tela (precisa abrir e fechar o modal).
+- Catálogo de criptos, só bitcoin é consultavel hoje.
 
 ## 5. Próximos passos:
