@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { BITCOIN } from '../common/assets.js';
 import { leagueStatusAt } from '../leagues/league-status.js';
 import { NotALeagueParticipantError } from '../leagues/leagues.errors.js';
 import { QUOTES_PROVIDER } from '../quotes/quotes-provider.js';
@@ -45,11 +46,12 @@ export type ExecutedOrder = {
 /**
  * Único ativo negociável hoje.
  *
- * Uma constante, e não uma tabela de catálogo: o catálogo é decisão de produto
- * ainda em aberto, e criar a tabela agora seria modelar uma variação que não
- * existe. Quando existir, é aqui que a troca começa — o compilador aponta.
+ * O código vem de `common/assets`, compartilhado com quem cota o preço e com
+ * quem lê a posição: com a palavra em um lugar só, não há como um módulo
+ * gravar `BTC` e outro consultar `btc`. O **que é negociável** continua sendo
+ * decisão deste módulo — é regra de ordem, não vocabulário.
  */
-const TRADABLE_SYMBOL = 'BTC';
+const TRADABLE_SYMBOL = BITCOIN;
 
 @Injectable()
 export class OrdersService {

@@ -19,6 +19,15 @@ export type LeagueParticipant = {
    * motivo do saldo da liga (ver leaguesApi.ts).
    */
   cashBalance: string
+  /**
+   * Bitcoin que esta pessoa tem em carteira nesta liga. `"0"` para quem nunca
+   * comprou — a API já traduz a ausência de posição em zero, então a tela não
+   * precisa decidir o que mostrar no lugar do nada.
+   *
+   * É a posição **atual**. Hoje ela é igual ao total comprado, porque não
+   * existe venda; quando existir, os dois números separam.
+   */
+  bitcoinQuantity: string
 }
 
 /** Erro já pronto para a tela: a mensagem é decidida aqui, e o componente só exibe. */
@@ -36,7 +45,9 @@ function isLeagueParticipant(value: unknown): value is LeagueParticipant {
     'name' in value &&
     typeof value.name === 'string' &&
     'cashBalance' in value &&
-    typeof value.cashBalance === 'string'
+    typeof value.cashBalance === 'string' &&
+    'bitcoinQuantity' in value &&
+    typeof value.bitcoinQuantity === 'string'
   )
 }
 

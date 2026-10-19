@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { BITCOIN } from '../common/assets.js';
 import { parseBinanceTickerPrice } from './binance-ticker-price.js';
 import { QuotesUnavailableError } from './quotes.errors.js';
 import type { Quote, QuotesProvider } from './quotes-provider.js';
@@ -22,9 +23,6 @@ import type { Quote, QuotesProvider } from './quotes-provider.js';
  * que ninguém vê numa liga de brincadeira.
  */
 const BINANCE_SYMBOL = 'BTCUSDT';
-
-/** Como o produto chama o ativo. É o que sai na API, não o par da corretora. */
-const BITCOIN = 'BTC';
 
 const TICKER_PRICE_URL = `https://api.binance.com/api/v3/ticker/price?symbol=${BINANCE_SYMBOL}`;
 

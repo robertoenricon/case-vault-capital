@@ -101,6 +101,21 @@ function repositoryFake() {
     );
   }
 
+  /** Bitcoin em carteira por participação. Vazio = nunca comprou. */
+  const btcByParticipation = new Map<string, string>();
+
+  /**
+   * Posição da participação.
+   *
+   * Zero quando não semeada, diferente do saldo acima: no real, participação
+   * sem linha em `positions` é o estado normal de quem ainda não comprou, e o
+   * repositório traduz a ausência em `"0"`. Marcar como erro aqui faria o
+   * dublê mentir sobre o banco.
+   */
+  function bitcoinDaParticipacao(leagueId: string, userId: string): string {
+    return btcByParticipation.get(chaveDaParticipacao(leagueId, userId)) ?? '0';
+  }
+
   /** Convites pendentes, como as linhas da tabela. */
   const invites: { id: string; leagueId: string; invitedUserId: string }[] = [];
 
@@ -196,6 +211,17 @@ function repositoryFake() {
       }
     },
 
+    /**
+     * Bitcoin em carteira de uma participação, para simular quem já comprou.
+     *
+     * Quem não for semeado continua com `"0"` — e isso **é** o comportamento
+     * do real: antes da primeira compra não existe linha em `positions`, e o
+     * repositório traduz a ausência em zero.
+     */
+    seedBitcoin(leagueId: string, userId: string, quantity: string): void {
+      btcByParticipation.set(chaveDaParticipacao(leagueId, userId), quantity);
+    },
+
     /** Saldo de uma participação específica, para simular quem já gastou. */
     seedCash(leagueId: string, userId: string, cashBalance: string): void {
       cashByParticipation.set(
@@ -230,6 +256,7 @@ function repositoryFake() {
           userId,
           name: namesByUser.get(userId) ?? `sem-nome-semeado:${userId}`,
           cashBalance: saldoDaParticipacao(leagueId, userId),
+          bitcoinQuantity: bitcoinDaParticipacao(leagueId, userId),
         })),
       );
     },
@@ -734,6 +761,38 @@ describe('LeaguesService.listParticipants', () => {
     const saldos = new Map(participants.map((p) => [p.name, p.cashBalance]));
     expect(saldos.get('Ana Prado')).toBe(SALDO_CONFIGURADO);
     expect(saldos.get('Bruno Lima')).toBe('8200.10');
+  });
+
+  it('devolve o bitcoin em carteira de cada participante', async () => {
+    const repository = repositoryFake();
+    repository.seed(ligaNoBanco(LIGA, 'Liga dos Amigos', -1, 5));
+    repository.seedParticipants(LIGA, [CRIADOR, BRUNO]);
+    repository.seedUserName(CRIADOR, 'Ana Prado');
+    repository.seedUserName(BRUNO, 'Bruno Lima');
+    repository.seedBitcoin(LIGA, BRUNO, '0.06');
+
+    const service = await buildService(repository);
+    const participants = await service.listParticipants(LIGA, CRIADOR);
+
+    // Mesma decisão de produto do saldo: numa competição, o que cada um tem é
+    // informação de todos — e saldo sozinho enganaria, porque quem trocou
+    // caixa por cripto aparece com pouco dinheiro.
+    const posicoes = new Map(
+      participants.map((p) => [p.name, p.bitcoinQuantity]),
+    );
+    expect(posicoes.get('Bruno Lima')).toBe('0.06');
+  });
+
+  it('mostra zero para quem nunca comprou, em vez de vazio', async () => {
+    const repository = ligaComDois();
+    const service = await buildService(repository);
+
+    const participants = await service.listParticipants(LIGA, CRIADOR);
+
+    // Antes da primeira compra não existe linha em `positions`. "Não tem
+    // posição" e "tem zero" são a mesma coisa para quem lê a lista, e a
+    // tradução acontece na camada de dados — a tela não decide isso.
+    expect(participants.every((p) => p.bitcoinQuantity === '0')).toBe(true);
   });
 
   it('não consulta a base de usuários', async () => {

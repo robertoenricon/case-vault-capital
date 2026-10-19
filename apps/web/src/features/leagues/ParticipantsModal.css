@@ -1,10 +1,12 @@
 /*
- * Modal de participantes. Botões vêm de authForm.css; aqui só a caixa, o fundo
- * e a lista de nomes.
+ * Modal da liga. Botões e campos vêm de authForm.css; aqui só a caixa, o fundo
+ * e a lista de participantes.
  *
- * As medidas acompanham o modal de convite de propósito: são duas listas de
- * pessoas abertas a partir do mesmo card, e caixas de larguras diferentes
- * fariam a tela pular de uma para a outra.
+ * A largura **deixou** de acompanhar o modal de convite, que era o critério
+ * enquanto os dois mostravam só uma lista de nomes. Este agora carrega cotação,
+ * formulário de compra e uma lista de três colunas — espremê-lo em 460px para
+ * manter a simetria com uma tela que faz muito menos seria simetria pela
+ * simetria.
  */
 
 /*
@@ -13,13 +15,24 @@
  */
 .participants {
   width: 100%;
-  max-width: 460px;
+  max-width: 580px;
   padding: 0;
   color: var(--cream);
   background: var(--surface-raised);
   border: 1px solid var(--edge);
   border-radius: 12px;
   box-shadow: var(--shadow-dark);
+
+  /*
+   * Teto de altura. Sem ele o modal cresce com o conteúdo e, num notebook
+   * baixo, cotação + formulário + lista passam da tela — e o `<dialog>` é
+   * centrado, então o corte acontece **nas duas pontas**: o topo sai por cima
+   * e o botão Fechar, por baixo, sem nada para rolar.
+   *
+   * `dvh` e não `vh`: no celular, `vh` ignora a barra do navegador que aparece
+   * e some, e o rodapé do modal fica embaixo dela.
+   */
+  max-height: 90dvh;
 }
 
 .participants::backdrop {
@@ -32,6 +45,18 @@
   flex-direction: column;
   gap: 16px;
   padding: 28px;
+
+  /*
+   * Herda o teto do dialog para que os filhos possam encolher dentro dele. É
+   * o que faz a lista virar a região que rola, com cotação, formulário e
+   * rodapé parados no lugar.
+   *
+   * O `overflow-y` é rede de segurança: numa tela muito baixa, nem com a lista
+   * no mínimo o conteúdo cabe, e aí a caixa inteira rola. Prefiro duas regiões
+   * de rolagem nesse caso raro a conteúdo cortado sem saída.
+   */
+  max-height: 90dvh;
+  overflow-y: auto;
 
   @media (max-width: 480px) {
     padding: 22px 18px;
@@ -63,8 +88,37 @@
 }
 
 /*
- * Lista de nomes. Altura limitada com rolagem própria, como na lista de
- * convite: uma liga grande não pode empurrar o botão de fechar fora da tela.
+ * Cabeçalho das colunas. Pequeno e apagado: orienta na primeira leitura e sai
+ * do caminho depois.
+ *
+ * A grade é declarada aqui e repetida em `.participants__person` — as duas
+ * precisam casar, e a única forma de garanti-lo de verdade seria uma `<table>`.
+ * Mantive `<ul>` porque são pessoas, não planilha, e porque a unidade vai
+ * escrita em cada célula ("0,06 BTC"): a linha se explica sem depender do
+ * alinhamento.
+ */
+.participants__head {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 14px;
+  padding: 0 2px 6px;
+  border-bottom: 1px solid var(--edge-strong);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--cream-soft);
+
+  /* Os dois rótulos de valor acompanham os números, que são à direita. */
+  & > span:not(:first-child) {
+    text-align: right;
+  }
+}
+
+/*
+ * Lista. Rola sozinha e ocupa o que sobrar da altura do modal: com cotação e
+ * formulário acima, uma altura fixa aqui ora deixaria buraco, ora estouraria.
+ * O `min-height: 0` é o que permite um item de flex encolher abaixo do próprio
+ * conteúdo — sem ele a lista não rola, ela empurra.
  */
 .participants__list {
   list-style: none;
@@ -72,17 +126,23 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  max-height: 340px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 
+/*
+ * Três colunas: quem é, quanto tem em bitcoin, quanto tem em caixa.
+ *
+ * `grid` e não `flex` com `space-between`, que bastava com dois valores: com
+ * três, só a grade garante que os números de linhas diferentes caiam na mesma
+ * coluna. O nome fica em `1fr` e encolhe; os valores têm largura própria.
+ */
 .participants__person {
-  display: flex;
-  align-items: center;
-  /* Nome à esquerda, saldo à direita: a coluna de valores fica alinhada e dá
-     para comparar os participantes de cima para baixo. */
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 14px;
   padding: 11px 2px;
 
   /* Separador entre pessoas, sem linha sobrando no fim da lista. */
@@ -99,17 +159,32 @@
 }
 
 /*
+ * Posição em bitcoin. Cor neutra, diferente do dourado do caixa: são duas
+ * grandezas diferentes na mesma linha, e pintar as duas igual faria o olho
+ * somá-las.
+ */
+.participants__btc {
+  font-size: 15px;
+  color: var(--cream);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/*
  * Saldo do participante. `tabular-nums` é o que mantém a coluna alinhada entre
  * as linhas, e `nowrap` impede "US$ 10.000,00" de quebrar ao lado de um nome
  * comprido — nome encolhe, valor não.
  */
 .participants__balance {
-  flex-shrink: 0;
   font-size: 15px;
   font-weight: 500;
   color: var(--gold);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  /* Números alinhados à direita: é o que permite comparar as linhas de cima
+     para baixo sem ler dígito por dígito. */
+  text-align: right;
 }
 
 /* Aviso da liga de uma pessoa só: orientação, não erro — por isso discreto. */

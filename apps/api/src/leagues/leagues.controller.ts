@@ -71,6 +71,14 @@ type LeagueParticipantResponse = {
   name: string;
   /** Texto decimal, pelo mesmo motivo do saldo da liga. */
   cashBalance: string;
+  /**
+   * Bitcoin em carteira, texto decimal. `"0"` para quem nunca comprou.
+   *
+   * Sai junto do saldo e pela mesma razão: numa competição, o que cada um tem
+   * é informação de todos. Saldo sozinho não diz quem está ganhando — quem
+   * trocou caixa por cripto aparece com pouco dinheiro e muita posição.
+   */
+  bitcoinQuantity: string;
 };
 
 /** Convite pendente, como a tela de quem foi convidado precisa dele. */
@@ -267,6 +275,7 @@ function toParticipantResponse(
     id: participant.id,
     name: participant.name,
     cashBalance: participant.cashBalance,
+    bitcoinQuantity: participant.bitcoinQuantity,
   };
 }
 

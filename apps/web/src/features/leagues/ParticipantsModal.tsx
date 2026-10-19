@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { formatUsd } from '../../lib/money'
+import { formatBtc, formatUsd } from '../../lib/money'
 import { BuyBitcoinForm } from '../orders/BuyBitcoinForm'
 import { BitcoinTicker } from '../quotes/BitcoinTicker'
 import { useBitcoinQuote } from '../quotes/useBitcoinQuote'
@@ -120,13 +120,31 @@ export function ParticipantsModal({
 
     return (
       <>
+        {/* Cabeçalho das colunas. Fora do `<ul>`, não como primeiro `<li>`:
+            rótulo de coluna não é um participante da lista. */}
+        <div className="participants__head">
+          <span>Participante</span>
+          <span>Bitcoin</span>
+          <span>Em caixa</span>
+        </div>
+
         <ul className="participants__list">
           {participants.map((participant) => (
             // `key` com o id da conta, nunca o índice.
             <li className="participants__person" key={participant.id}>
               <span className="participants__name">{participant.name}</span>
-              {/* O saldo de cada um fica visível a todos os participantes: a
-                  liga é uma competição, e acompanhar o adversário é o ponto. */}
+
+              {/* Posição e saldo de cada um ficam visíveis a todos: a liga é
+                  uma competição, e acompanhar o adversário é o ponto. Saldo
+                  sozinho enganaria — quem trocou caixa por cripto aparece com
+                  pouco dinheiro e não está perdendo por isso. */}
+              <span className="participants__btc">
+                {/* A unidade vai no texto, não só no cabeçalho: é o que faz a
+                    linha fazer sentido lida por um leitor de tela, que não
+                    associa célula a coluna numa lista. */}
+                {formatBtc(participant.bitcoinQuantity)} BTC
+              </span>
+
               <span className="participants__balance">
                 {formatUsd(participant.cashBalance)}
               </span>

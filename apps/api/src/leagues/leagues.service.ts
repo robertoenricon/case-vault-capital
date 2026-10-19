@@ -85,6 +85,15 @@ export type LeagueParticipant = {
   name: string;
   /** Dinheiro que a pessoa tem nesta liga, em texto decimal. */
   cashBalance: string;
+  /**
+   * Bitcoin que a pessoa tem em carteira nesta liga, em texto decimal. `"0"`
+   * para quem nunca comprou.
+   *
+   * É a posição **atual**, não o total já comprado. Hoje os dois números são
+   * iguais porque não existe venda; no dia em que existir, deixam de ser, e
+   * este campo continua sendo o que a pessoa tem agora.
+   */
+  bitcoinQuantity: string;
 };
 
 /**
@@ -215,6 +224,7 @@ export class LeaguesService {
       id: participant.userId,
       name: participant.name,
       cashBalance: participant.cashBalance,
+      bitcoinQuantity: participant.bitcoinQuantity,
     }));
   }
 

@@ -45,3 +45,32 @@ export function formatUsd(amount: string): string {
 
   return USD.format(value)
 }
+
+/**
+ * Formatador de quantidade de cripto: até 8 casas (1 satoshi, a menor fração
+ * de bitcoin), **sem zeros à direita**.
+ *
+ * O mínimo é zero casas de propósito: a API devolve `"0.06000000"`, e
+ * "0,06000000 BTC" numa lista é ruído — a coluna fica larga e o número, difícil
+ * de comparar de cima para baixo. Com o mínimo em zero, sai "0,06".
+ */
+const BTC = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 8,
+})
+
+/**
+ * Quantidade de bitcoin, como a tela a mostra. Recebe o texto decimal que a
+ * API manda (`"0.06000000"`, `"0"`).
+ *
+ * Mesma ressalva do `formatUsd`: o `Number` aqui é **só para formatar**, e o
+ * valor que atravessa estado, props e payload continua sendo o texto exato da
+ * API. A tela não faz conta nenhuma com quantidade.
+ */
+export function formatBtc(quantity: string): string {
+  const value = Number(quantity)
+
+  if (!Number.isFinite(value)) return quantity
+
+  return BTC.format(value)
+}

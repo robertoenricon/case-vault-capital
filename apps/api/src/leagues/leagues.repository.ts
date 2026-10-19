@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { BITCOIN } from '../common/assets.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -61,15 +62,17 @@ export type StoredInvite = {
 };
 
 /**
- * Participante como a lista da liga precisa dele: a conta e o nome dela.
+ * Participante como a lista da liga precisa dele: quem é, quanto tem em caixa
+ * e quanto tem em bitcoin.
  *
  * O nome vem por join de `users`, nunca copiado para a tabela de participação
  * (ver schema.prisma) — copiar criaria duas verdades para o mesmo dado, e a
- * cópia envelheceria no dia em que a pessoa trocasse o nome.
+ * cópia envelheceria no dia em que a pessoa trocasse o nome. A posição vem por
+ * join de `positions`, pelo mesmo motivo.
  *
- * `joinedAt` **não** sai: a tela mostra nome e saldo, por decisão registrada. O
- * campo existe na tabela e serve à ordenação, mas não atravessa esta camada
- * enquanto ninguém o exibir.
+ * `joinedAt` **não** sai: a tela mostra nome, saldo e posição, por decisão
+ * registrada. O campo existe na tabela e serve à ordenação, mas não atravessa
+ * esta camada enquanto ninguém o exibir.
  */
 export type StoredParticipant = {
   /**
@@ -81,6 +84,19 @@ export type StoredParticipant = {
   name: string;
   /** Saldo em dinheiro desta pessoa nesta liga, em texto decimal. */
   cashBalance: string;
+  /**
+   * Bitcoin que esta pessoa tem em carteira nesta liga, em texto decimal.
+   *
+   * `"0"` quando ela nunca comprou: não existe linha em `positions` antes da
+   * primeira ordem, e "não tem posição" e "tem zero" são a mesma coisa para
+   * quem lê a lista. Traduzir a ausência aqui evita que cada tela invente o
+   * próprio jeito de mostrar o nada.
+   *
+   * Um campo para bitcoin, e não um mapa de ativos, porque só existe um ativo
+   * negociável. Quando o catálogo abrir, isto vira uma lista e o compilador
+   * aponta todos os pontos a ajustar.
+   */
+  bitcoinQuantity: string;
 };
 
 /**
@@ -242,12 +258,33 @@ export class LeaguesRepository {
   async findParticipants(leagueId: string): Promise<StoredParticipant[]> {
     const participants = await this.prisma.leagueParticipant.findMany({
       where: { leagueId },
-      // `select` explícito dos dois lados do join: nem coluna nova de
-      // participação nem coluna nova de conta passa a sair sem alguém decidir.
+      // `select` explícito dos três lados do join: nem coluna nova de
+      // participação, nem de conta, nem de posição passa a sair sem alguém
+      // decidir.
       select: {
         userId: true,
         cashBalance: true,
         user: { select: { name: true } },
+        /*
+         * A posição vem no mesmo `select`, e não numa busca por participante.
+         *
+         * O Prisma não resolve isto como um JOIN: ele dispara uma consulta por
+         * relação (participações, contas, posições), cada uma com um `IN` dos
+         * ids. São três idas ao banco, **constantes** — não crescem com o
+         * tamanho da liga, que é o que importa aqui. Buscar a carteira de cada
+         * um à parte, sim, seria N+1.
+         *
+         * `positions` é escrita pelo módulo de ordens e lida aqui. São dois
+         * módulos na mesma tabela, como já acontece com `league_participants`
+         * no sentido inverso. A alternativa seria o módulo de ordens expor um
+         * serviço de leitura e este importá-lo — mais indireção e uma consulta
+         * a mais, para um dado que esta já traz. Quando o ranking existir,
+         * esta leitura provavelmente vira o começo de um read model próprio.
+         */
+        positions: {
+          where: { symbol: BITCOIN },
+          select: { quantity: true },
+        },
       },
       orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
     });
@@ -258,6 +295,12 @@ export class LeaguesRepository {
       userId: participant.userId,
       name: participant.user.name,
       cashBalance: toDecimalText(participant.cashBalance),
+      // O `where` acima limita a no máximo uma linha (o único é
+      // `participant_id + symbol`). Vazio = nunca comprou, que a lista mostra
+      // como zero.
+      bitcoinQuantity: participant.positions[0]
+        ? toDecimalText(participant.positions[0].quantity)
+        : '0',
     }));
   }
 
