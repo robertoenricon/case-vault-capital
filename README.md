@@ -3,6 +3,35 @@
 Liga trading: amigos criam uma liga, recebem o mesmo saldo fictício e
 competem operando cripto com cotação real.
 
+## Aplicação publicada
+
+- https://case-vault-capital-web.vercel.app |
+
+### Criando uma conta
+
+O cadastro é aberto — não existe convite para entrar na plataforma, só para
+entrar numa liga. Não há usuário de teste pré-criado.
+
+1. Abra https://case-vault-capital-web.vercel.app.
+2. Clique em **Criar conta**.
+3. O cadastro devolve para a tela de login com o e-mail já preenchido.
+   Clique em **Entrar**.
+
+**Crie duas contas para ver a liga funcionando**, a segunda numa janela anônima.
+O convite é feito escolhendo alguém que já tem conta: com um usuário só, a liga
+fica com um participante e o ranking com uma linha.
+
+### Roteiro de cinco minutos
+
+1. **Criar liga** — nome e período. Quem cria já entra como participante, com o
+   saldo fictício inicial de **US$ 10.000**.
+2. **Convidar amigos** — escolha a segunda conta na lista.
+3. Na segunda conta, **Aceitar** o convite que aparece no dashboard.
+4. **Comprar** e **Vender** bitcoin. A cotação é buscada na API pública da
+   Binance pelo backend: o cliente diz o que e quanto, nunca por quanto.
+5. **Ranking** — ordena por patrimônio (caixa + bitcoin avaliado ao preço atual)
+   e exibe o retorno percentual sobre o saldo inicial.
+
 ## Rodando localmente
 
 Único pré-requisito: **Docker**.
@@ -14,10 +43,14 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Web (React + Vite) = http://localhost:{PORT}
-API (NestJS) = http://localhost:{PORT}
+| Serviço | URL |
+| --- | --- |
+| Web (React + Vite) | http://localhost:5173 |
+| API (NestJS) | http://localhost:3100 |
 
-Para conferir se subiu: `http://localhost:{PORT}`
+A porta da API vem de `API_PORT` no `.env` (3100 no exemplo); a do front é fixa
+em 5173. Para conferir se a API subiu, `http://localhost:3100` responde um texto
+curto. O cadastro é o mesmo descrito acima, pelo front em http://localhost:5173.
 
 ### Comandos do dia a dia
 
@@ -56,10 +89,10 @@ O banco **nunca** é alterado à mão: toda mudança vira uma migration versiona
 
 ```bash
 # aplica no banco local as migrations que ainda faltam
-docker compose exec api npx prisma migrate deploy
+docker compose exec api npm run db:migrate:deploy
 
 # criar uma migration nova depois de editar o schema.prisma
-docker compose exec api npx prisma migrate dev --name descricao_curta
+docker compose exec api npx prisma migrate dev --config prisma7.config.ts --name descricao_curta
 ```
 
 Do host (DBeaver, Navicat, etc.), use as variaveis do .env:
@@ -89,7 +122,7 @@ docker-compose.yml — orquestra api, web e o banco
 - [X] Ranking da liga
 
 Deploy:
-- [ ] Deploy publico (gerar link)
-- [ ] README: rodar localmente + link da aplicação + como criar conta/usuário de teste
-- [ ] DECISIONS.md (pegar o que está no pdf e responder)
-- [ ] Histórico de commits frequente e legível
+- [X] Deploy público (front e back no ar)
+- [X] README: rodar localmente + link da aplicação + como criar conta/usuário de teste
+- [X] DECISIONS.md (pegar o que está no pdf e responder)
+- [X] Histórico de commits frequente e legível
